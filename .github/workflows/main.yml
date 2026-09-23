@@ -1,0 +1,988 @@
+name: OU The Builder WBA - Build and Deploy
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js 24
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Create OU The Builder WBA
+        shell: bash
+        run: |
+          set -e
+
+          mkdir -p src public
+
+          cat > package.json <<'EOF'
+          {
+            "name": "ou-the-builder-wba",
+            "private": true,
+            "version": "0.2.0",
+            "type": "module",
+            "scripts": {
+              "dev": "vite",
+              "build": "vite build",
+              "preview": "vite preview"
+            },
+            "dependencies": {
+              "@vitejs/plugin-react": "^5.0.4",
+              "vite": "^7.1.7",
+              "react": "^19.1.1",
+              "react-dom": "^19.1.1"
+            },
+            "devDependencies": {}
+          }
+          EOF
+
+          cat > vite.config.js <<'EOF'
+          import { defineConfig } from 'vite'
+          import react from '@vitejs/plugin-react'
+
+          export default defineConfig({
+            plugins: [react()],
+            base: './'
+          })
+          EOF
+
+          cat > index.html <<'EOF'
+          <!doctype html>
+          <html lang="en">
+            <head>
+              <meta charset="UTF-8" />
+              <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+              <meta name="theme-color" content="#050816" />
+              <meta name="description" content="OU The Builder Web-Based Application" />
+              <title>OU The Builder</title>
+            </head>
+            <body>
+              <div id="root"></div>
+              <script type="module" src="/src/main.jsx"></script>
+            </body>
+          </html>
+          EOF
+
+          cat > src/main.jsx <<'EOF'
+          import React from 'react'
+          import ReactDOM from 'react-dom/client'
+          import App from './App.jsx'
+          import './App.css'
+
+          ReactDOM.createRoot(document.getElementById('root')).render(
+            <React.StrictMode>
+              <App />
+            </React.StrictMode>
+          )
+          EOF
+
+          cat > src/App.jsx <<'EOF'
+          import React, { useState } from 'react'
+
+          const navigation = [
+            ['Home', '⌂'],
+            ['Projects', '▣'],
+            ['Files', '▤'],
+            ['Build', '⚙'],
+            ['AI Chat', '✦'],
+            ['Image Flow', '◇'],
+            ['Google Drive', '☁'],
+            ['Settings', '⚙']
+          ]
+
+          function Header({ active, setActive }) {
+            return (
+              <header className="topbar">
+                <button className="brand" onClick={() => setActive('Home')}>
+                  <div className="logo">OU</div>
+                  <div>
+                    <div className="brand-name">OU The Builder</div>
+                    <div className="brand-subtitle">Web-Based Application</div>
+                  </div>
+                </button>
+
+                <div className="online">
+                  <span></span>
+                  Online
+                </div>
+              </header>
+            )
+          }
+
+          function Sidebar({ active, setActive }) {
+            return (
+              <aside className="sidebar">
+                <div className="nav-title">BUILDER</div>
+
+                {navigation.map(([name, icon]) => (
+                  <button
+                    key={name}
+                    className={`nav-item ${active === name ? 'active' : ''}`}
+                    onClick={() => setActive(name)}
+                  >
+                    <span className="nav-icon">{icon}</span>
+                    <span>{name}</span>
+                  </button>
+                ))}
+              </aside>
+            )
+          }
+
+          function PageTitle({ eyebrow, title, description }) {
+            return (
+              <div className="page-title">
+                <div>
+                  <div className="eyebrow">{eyebrow}</div>
+                  <h1>{title}</h1>
+                  <p>{description}</p>
+                </div>
+              </div>
+            )
+          }
+
+          function Home({ setActive }) {
+            const [message, setMessage] = useState('')
+
+            const sendMessage = () => {
+              if (!message.trim()) return
+              setMessage('')
+              setActive('AI Chat')
+            }
+
+            return (
+              <>
+                <section className="hero">
+                  <div>
+                    <div className="eyebrow">FOUNDATION STAGE</div>
+                    <h1>Welcome to <span>OU The Builder</span></h1>
+                    <p>
+                      Build, manage, visualize and compile your projects
+                      from one web-based workspace.
+                    </p>
+                  </div>
+
+                  <div className="hero-badge">
+                    <strong>v0.2.0</strong>
+                    <span>Interactive Foundation</span>
+                  </div>
+                </section>
+
+                <section className="cards">
+                  <div className="card">
+                    <div className="card-icon">✦</div>
+                    <h2>AI Builder</h2>
+                    <p>Use AI as the central control interface for your builder.</p>
+                    <button onClick={() => setActive('AI Chat')}>
+                      Open AI Chat
+                    </button>
+                  </div>
+
+                  <div className="card">
+                    <div className="card-icon">▣</div>
+                    <h2>Projects</h2>
+                    <p>Create, import, manage and export your projects.</p>
+                    <button onClick={() => setActive('Projects')}>
+                      Open Projects
+                    </button>
+                  </div>
+
+                  <div className="card">
+                    <div className="card-icon">⚙</div>
+                    <h2>Build</h2>
+                    <p>Prepare projects for remote compilation and APK generation.</p>
+                    <button onClick={() => setActive('Build')}>
+                      Open Build
+                    </button>
+                  </div>
+
+                  <div className="card">
+                    <div className="card-icon">◇</div>
+                    <h2>Image Flow</h2>
+                    <p>Visualize application screens, buttons and navigation.</p>
+                    <button onClick={() => setActive('Image Flow')}>
+                      Open Image Flow
+                    </button>
+                  </div>
+                </section>
+
+                <section className="workspace">
+                  <div className="panel">
+                    <div className="panel-header">
+                      <div>
+                        <h2>AI Chat</h2>
+                        <p>Central Builder Control</p>
+                      </div>
+                      <span className="status-badge">Ready</span>
+                    </div>
+
+                    <div className="chat-area">
+                      <div className="assistant-message">
+                        <div className="avatar">OU</div>
+                        <div>
+                          <strong>OU Builder</strong>
+                          <p>
+                            Tell me what you want to build, import, inspect
+                            or compile.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="chat-input">
+                      <input
+                        value={message}
+                        onChange={(e) => setMessage(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') sendMessage()
+                        }}
+                        placeholder="Tell OU The Builder what to do..."
+                      />
+                      <button onClick={sendMessage}>Send</button>
+                    </div>
+                  </div>
+
+                  <SystemStatus />
+                </section>
+
+                <section className="lower-grid">
+                  <div className="panel">
+                    <div className="panel-header">
+                      <div>
+                        <h2>Current Project</h2>
+                        <p>No project selected</p>
+                      </div>
+                    </div>
+
+                    <div className="empty-state">
+                      <div className="empty-icon">▣</div>
+                      <strong>No project selected</strong>
+                      <p>Create or import a project to begin.</p>
+                      <button onClick={() => setActive('Projects')}>
+                        Manage Projects
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="panel">
+                    <div className="panel-header">
+                      <div>
+                        <h2>Quick Actions</h2>
+                        <p>Common builder actions</p>
+                      </div>
+                    </div>
+
+                    <div className="quick-actions">
+                      <button onClick={() => setActive('Projects')}>＋ New Project</button>
+                      <button onClick={() => setActive('Files')}>↑ Import Project</button>
+                      <button onClick={() => setActive('Build')}>⚙ Build Project</button>
+                      <button onClick={() => setActive('Image Flow')}>◇ View Flow</button>
+                    </div>
+                  </div>
+                </section>
+
+                <section className="panel activity">
+                  <div className="panel-header">
+                    <div>
+                      <h2>Recent Activity</h2>
+                      <p>Latest builder activity</p>
+                    </div>
+                  </div>
+
+                  <div className="activity-row">
+                    <span className="activity-dot"></span>
+                    <div>
+                      <strong>OU The Builder WBA is ready</strong>
+                      <p>Interactive navigation foundation is active.</p>
+                    </div>
+                    <time>Now</time>
+                  </div>
+                </section>
+              </>
+            )
+          }
+
+          function SystemStatus() {
+            return (
+              <div className="panel">
+                <div className="panel-header">
+                  <div>
+                    <h2>System Status</h2>
+                    <p>Foundation services</p>
+                  </div>
+                </div>
+
+                <div className="status-list">
+                  <div>
+                    <span>WBA Interface</span>
+                    <b>Ready</b>
+                  </div>
+                  <div>
+                    <span>Project System</span>
+                    <b>Ready</b>
+                  </div>
+                  <div>
+                    <span>Build System</span>
+                    <b>Foundation</b>
+                  </div>
+                  <div>
+                    <span>AI Interface</span>
+                    <b>Ready</b>
+                  </div>
+                </div>
+              </div>
+            )
+          }
+
+          function Projects() {
+            const [projects, setProjects] = useState([])
+            const [name, setName] = useState('')
+
+            const createProject = () => {
+              const value = name.trim()
+              if (!value) return
+              setProjects([...projects, value])
+              setName('')
+            }
+
+            return (
+              <>
+                <PageTitle
+                  eyebrow="PROJECT MANAGER"
+                  title="Projects"
+                  description="Create and manage your builder projects."
+                />
+
+                <div className="panel">
+                  <div className="section-heading">
+                    <div>
+                      <h2>Create Project</h2>
+                      <p>Start a new project workspace.</p>
+                    </div>
+                  </div>
+
+                  <div className="form-row">
+                    <input
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') createProject()
+                      }}
+                      placeholder="Project name"
+                    />
+                    <button className="primary" onClick={createProject}>
+                      + Create Project
+                    </button>
+                  </div>
+                </div>
+
+                <div className="panel">
+                  <div className="section-heading">
+                    <div>
+                      <h2>Your Projects</h2>
+                      <p>{projects.length} project(s)</p>
+                    </div>
+                  </div>
+
+                  {projects.length === 0 ? (
+                    <div className="empty-state">
+                      <div className="empty-icon">▣</div>
+                      <strong>No projects yet</strong>
+                      <p>Your created projects will appear here.</p>
+                    </div>
+                  ) : (
+                    <div className="project-list">
+                      {projects.map((project, index) => (
+                        <div className="project-row" key={`${project}-${index}`}>
+                          <div className="project-icon">▣</div>
+                          <div>
+                            <strong>{project}</strong>
+                            <span>Local WBA project</span>
+                          </div>
+                          <button>Open</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </>
+            )
+          }
+
+          function Files() {
+            const [files, setFiles] = useState([])
+
+            const selectFiles = (event) => {
+              const selected = Array.from(event.target.files || [])
+              setFiles(selected)
+            }
+
+            return (
+              <>
+                <PageTitle
+                  eyebrow="FILE MANAGER"
+                  title="Files"
+                  description="Manage project files and resources."
+                />
+
+                <div className="panel upload-panel">
+                  <div className="upload-icon">↑</div>
+                  <h2>Import Project Files</h2>
+                  <p>
+                    Select ZIP, source files, images, documents, media or other
+                    project resources.
+                  </p>
+
+                  <label className="upload-button">
+                    Select Files
+                    <input type="file" multiple onChange={selectFiles} />
+                  </label>
+                </div>
+
+                <div className="panel">
+                  <div className="section-heading">
+                    <div>
+                      <h2>Selected Files</h2>
+                      <p>{files.length} file(s) selected</p>
+                    </div>
+                  </div>
+
+                  {files.length === 0 ? (
+                    <div className="empty-state">
+                      <div className="empty-icon">▤</div>
+                      <strong>No files selected</strong>
+                      <p>Imported project resources will appear here.</p>
+                    </div>
+                  ) : (
+                    <div className="file-list">
+                      {files.map((file) => (
+                        <div className="file-row" key={`${file.name}-${file.size}`}>
+                          <span>▤</span>
+                          <div>
+                            <strong>{file.name}</strong>
+                            <small>{Math.round(file.size / 1024)} KB</small>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </>
+            )
+          }
+
+          function Build() {
+            const [target, setTarget] = useState('Android APK')
+            const [building, setBuilding] = useState(false)
+            const [logs, setLogs] = useState([
+              'BUILD CONSOLE',
+              'Waiting for a project...'
+            ])
+
+            const runBuild = () => {
+              setBuilding(true)
+              setLogs([
+                'BUILD CONSOLE',
+                'Project preparation started',
+                `Target: ${target}`,
+                'Checking compatibility...',
+                'Preparing remote build environment...',
+                'Build request prepared.',
+                'Remote APK compilation will be connected in the next build-system stage.'
+              ])
+
+              setTimeout(() => {
+                setBuilding(false)
+                setLogs((current) => [
+                  ...current,
+                  'Foundation build simulation complete.'
+                ])
+              }, 1200)
+            }
+
+            return (
+              <>
+                <PageTitle
+                  eyebrow="BUILD SYSTEM"
+                  title="Build"
+                  description="Prepare and control project compilation."
+                />
+
+                <div className="build-grid">
+                  <div className="panel">
+                    <div className="section-heading">
+                      <div>
+                        <h2>Build Target</h2>
+                        <p>Select the target platform.</p>
+                      </div>
+                    </div>
+
+                    <div className="target-options">
+                      {['Android APK', 'Web App', 'Hybrid App'].map((item) => (
+                        <button
+                          key={item}
+                          className={target === item ? 'target active' : 'target'}
+                          onClick={() => setTarget(item)}
+                        >
+                          <span>{item === 'Android APK' ? '▣' : item === 'Web App' ? '◎' : '◇'}</span>
+                          <strong>{item}</strong>
+                          <small>{item === 'Android APK' ? 'Android package' : 'Target option'}</small>
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className="build-action">
+                      <button className="primary big" onClick={runBuild} disabled={building}>
+                        {building ? 'Preparing Build...' : '▶ Run Build'}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="panel">
+                    <div className="section-heading">
+                      <div>
+                        <h2>Compatibility</h2>
+                        <p>Foundation checks</p>
+                      </div>
+                    </div>
+
+                    <div className="check-list">
+                      <div><span>✓</span> Project structure</div>
+                      <div><span>✓</span> Target selection</div>
+                      <div><span>✓</span> Build environment</div>
+                      <div><span>•</span> Resource validation</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="panel console">
+                  <div className="panel-header">
+                    <div>
+                      <h2>Build Console</h2>
+                      <p>Build process output</p>
+                    </div>
+                  </div>
+
+                  <div className="console-output">
+                    {logs.map((line, index) => (
+                      <div key={index} className={index === 0 ? 'console-title' : ''}>
+                        {line}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )
+          }
+
+          function AIChat() {
+            const [input, setInput] = useState('')
+            const [messages, setMessages] = useState([
+              {
+                role: 'assistant',
+                text: 'Hello! I am the OU The Builder control interface. What would you like to build?'
+              }
+            ])
+
+            const send = () => {
+              const text = input.trim()
+              if (!text) return
+
+              setMessages([
+                ...messages,
+                { role: 'user', text },
+                {
+                  role: 'assistant',
+                  text: 'Command received. AI agent execution will be connected in the next AI integration stage.'
+                }
+              ])
+              setInput('')
+            }
+
+            return (
+              <>
+                <PageTitle
+                  eyebrow="AI CONTROL"
+                  title="AI Chat"
+                  description="The central conversational interface for OU The Builder."
+                />
+
+                <div className="panel full-chat">
+                  <div className="chat-messages">
+                    {messages.map((message, index) => (
+                      <div
+                        key={index}
+                        className={message.role === 'user' ? 'message user' : 'message'}
+                      >
+                        <div className="avatar">
+                          {message.role === 'user' ? 'YOU' : 'OU'}
+                        </div>
+                        <div>
+                          <strong>{message.role === 'user' ? 'You' : 'OU Builder'}</strong>
+                          <p>{message.text}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="chat-input">
+                    <input
+                      value={input}
+                      onChange={(e) => setInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') send()
+                      }}
+                      placeholder="Type a builder command..."
+                    />
+                    <button onClick={send}>Send</button>
+                  </div>
+                </div>
+              </>
+            )
+          }
+
+          function ImageFlow() {
+            const screens = [
+              ['Home', '⌂'],
+              ['Projects', '▣'],
+              ['Build', '⚙'],
+              ['AI Chat', '✦']
+            ]
+
+            return (
+              <>
+                <PageTitle
+                  eyebrow="VISUAL FLOW"
+                  title="Image Flow"
+                  description="Visual representation of application screens and navigation."
+                />
+
+                <div className="panel">
+                  <div className="flow-toolbar">
+                    <div>
+                      <h2>Application Flow</h2>
+                      <p>Foundation navigation map</p>
+                    </div>
+                    <button>＋ Add Screen</button>
+                  </div>
+
+                  <div className="flow">
+                    {screens.map(([name, icon], index) => (
+                      <React.Fragment key={name}>
+                        <div className="flow-node">
+                          <div className="flow-icon">{icon}</div>
+                          <strong>{name}</strong>
+                          <small>Screen</small>
+                        </div>
+                        {index < screens.length - 1 && (
+                          <div className="flow-arrow">→</div>
+                        )}
+                      </React.Fragment>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )
+          }
+
+          function GoogleDrive() {
+            return (
+              <>
+                <PageTitle
+                  eyebrow="STORAGE"
+                  title="Google Drive"
+                  description="Connect cloud storage for project resources and exports."
+                />
+
+                <div className="panel drive-card">
+                  <div className="drive-icon">☁</div>
+                  <h2>Google Drive Integration</h2>
+                  <p>
+                    Google Drive support will allow projects and resources to
+                    be stored and reused through a secure user connection.
+                  </p>
+                  <button className="primary">Connect Google Drive</button>
+                  <small>
+                    Connection is not active in the foundation stage.
+                  </small>
+                </div>
+              </>
+            )
+          }
+
+          function Settings() {
+            const [dark, setDark] = useState(true)
+            const [notifications, setNotifications] = useState(true)
+
+            return (
+              <>
+                <PageTitle
+                  eyebrow="APPLICATION SETTINGS"
+                  title="Settings"
+                  description="Configure your OU The Builder experience."
+                />
+
+                <div className="settings-list">
+                  <div className="panel setting-row">
+                    <div>
+                      <h2>Dark Interface</h2>
+                      <p>Use the dark builder interface.</p>
+                    </div>
+                    <button
+                      className={dark ? 'toggle on' : 'toggle'}
+                      onClick={() => setDark(!dark)}
+                    >
+                      {dark ? 'ON' : 'OFF'}
+                    </button>
+                  </div>
+
+                  <div className="panel setting-row">
+                    <div>
+                      <h2>Notifications</h2>
+                      <p>Show builder status notifications.</p>
+                    </div>
+                    <button
+                      className={notifications ? 'toggle on' : 'toggle'}
+                      onClick={() => setNotifications(!notifications)}
+                    >
+                      {notifications ? 'ON' : 'OFF'}
+                    </button>
+                  </div>
+
+                  <div className="panel">
+                    <h2>Application Information</h2>
+                    <div className="info-grid">
+                      <span>Application</span>
+                      <strong>OU The Builder</strong>
+                      <span>Version</span>
+                      <strong>0.2.0</strong>
+                      <span>Platform</span>
+                      <strong>Web-Based Application</strong>
+                      <span>Stage</span>
+                      <strong>Interactive Foundation</strong>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )
+          }
+
+          function App() {
+            const [active, setActive] = useState('Home')
+
+            const renderPage = () => {
+              switch (active) {
+                case 'Projects':
+                  return <Projects />
+                case 'Files':
+                  return <Files />
+                case 'Build':
+                  return <Build />
+                case 'AI Chat':
+                  return <AIChat />
+                case 'Image Flow':
+                  return <ImageFlow />
+                case 'Google Drive':
+                  return <GoogleDrive />
+                case 'Settings':
+                  return <Settings />
+                default:
+                  return <Home setActive={setActive} />
+              }
+            }
+
+            return (
+              <div className="app">
+                <Header active={active} setActive={setActive} />
+
+                <div className="layout">
+                  <Sidebar active={active} setActive={setActive} />
+
+                  <main className="main">
+                    {renderPage()}
+
+                    <footer>
+                      OU The Builder · Web-Based Application · v0.2.0 · Interactive Foundation
+                    </footer>
+                  </main>
+                </div>
+              </div>
+            )
+          }
+
+          export default App
+          EOF
+
+          cat > src/App.css <<'EOF'
+          * {
+            box-sizing: border-box;
+          }
+
+          :root {
+            font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            color: #eef4ff;
+            background: #050816;
+          }
+
+          body {
+            margin: 0;
+            min-width: 320px;
+            background:
+              radial-gradient(circle at 20% 10%, rgba(45, 91, 255, .13), transparent 30%),
+              radial-gradient(circle at 80% 30%, rgba(139, 52, 255, .10), transparent 28%),
+              #050816;
+          }
+
+          button,
+          input {
+            font: inherit;
+          }
+
+          button {
+            cursor: pointer;
+          }
+
+          button:disabled {
+            opacity: .6;
+            cursor: wait;
+          }
+
+          .app {
+            min-height: 100vh;
+          }
+
+          .topbar {
+            height: 76px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 28px;
+            border-bottom: 1px solid rgba(130, 160, 220, .15);
+            background: rgba(5, 8, 22, .94);
+            backdrop-filter: blur(16px);
+            position: sticky;
+            top: 0;
+            z-index: 20;
+          }
+
+          .brand {
+            display: flex;
+            align-items: center;
+            gap: 13px;
+            border: 0;
+            color: white;
+            background: transparent;
+            padding: 0;
+            text-align: left;
+          }
+
+          .logo {
+            width: 43px;
+            height: 43px;
+            display: grid;
+            place-items: center;
+            border-radius: 12px;
+            font-weight: 900;
+            background: linear-gradient(135deg, #168cff, #8d45ff);
+            box-shadow: 0 0 25px rgba(62, 112, 255, .35);
+          }
+
+          .brand-name {
+            font-weight: 800;
+            font-size: 18px;
+          }
+
+          .brand-subtitle {
+            color: #8290aa;
+            font-size: 12px;
+            margin-top: 2px;
+          }
+
+          .online {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #7fe6b2;
+            font-size: 13px;
+          }
+
+          .online span,
+          .activity-dot {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #35dc8c;
+            box-shadow: 0 0 10px rgba(53, 220, 140, .7);
+          }
+
+          .layout {
+            display: flex;
+          }
+
+          .sidebar {
+            width: 235px;
+            min-height: calc(100vh - 76px);
+            padding: 25px 14px;
+            border-right: 1px solid rgba(130, 160, 220, .12);
+            background: rgba(4, 7, 19, .72);
+          }
+
+          .nav-title {
+            color: #5f6c85;
+            font-size: 10px;
+            font-weight: 800;
+            letter-spacing: 1.5px;
+            padding: 0 13px 12px;
+          }
+
+          .nav-item {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            gap: 13px;
+            border: 0;
+            border-radius: 10px;
+            padding: 12px 13px;
+            margin-bottom: 5px;
+            color: #8793aa;
+            background: transparent;
+            text-align: left;
+          }
+
+          .nav-item:hover,
+          .nav-item.active {
+            color: #fff;
+            background: linear-gradient(90deg, rgba(37, 112, 255, .20), rgba(117, 61, 255, .12));
+          }
+
+          .nav-item.active {
+            box-shadow: inset 3px 0 0 #348cff;
+          }
+
+          .nav-icon {
+            width: 22px;
+            text-align: center;
+            color: #56a5ff;
+          }
+
+          .
