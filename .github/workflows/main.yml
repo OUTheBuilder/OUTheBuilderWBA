@@ -1,0 +1,1724 @@
+name: OU The Builder WBA - Build and Deploy
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js 24
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Create OU The Builder WBA
+        shell: bash
+        run: |
+          set -e
+
+          mkdir -p src public
+
+          cat > package.json <<'EOF'
+          {
+            "name": "ou-the-builder-wba",
+            "private": true,
+            "version": "0.2.0",
+            "type": "module",
+            "scripts": {
+              "dev": "vite",
+              "build": "vite build",
+              "preview": "vite preview"
+            },
+            "dependencies": {
+              "@vitejs/plugin-react": "^5.0.4",
+              "vite": "^7.1.7",
+              "react": "^19.1.1",
+              "react-dom": "^19.1.1"
+            },
+            "devDependencies": {}
+          }
+          EOF
+
+          cat > vite.config.js <<'EOF'
+          import { defineConfig } from 'vite'
+          import react from '@vitejs/plugin-react'
+
+          export default defineConfig({
+            plugins: [react()],
+            base: './'
+          })
+          EOF
+
+          cat > index.html <<'EOF'
+          <!doctype html>
+          <html lang="en">
+            <head>
+              <meta charset="UTF-8" />
+              <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+              <meta name="theme-color" content="#050816" />
+              <meta name="description" content="OU The Builder Web-Based Application" />
+              <title>OU The Builder</title>
+            </head>
+            <body>
+              <div id="root"></div>
+              <script type="module" src="/src/main.jsx"></script>
+            </body>
+          </html>
+          EOF
+
+          cat > src/main.jsx <<'EOF'
+          import React from 'react'
+          import ReactDOM from 'react-dom/client'
+          import App from './App.jsx'
+          import './App.css'
+
+          ReactDOM.createRoot(document.getElementById('root')).render(
+            <React.StrictMode>
+              <App />
+            </React.StrictMode>
+          )
+          EOF
+
+          cat > src/App.jsx <<'EOF'
+          import React, { useState } from 'react'
+
+          const navigation = [
+            ['Home', '⌂'],
+            ['Projects', '▣'],
+            ['Files', '▤'],
+            ['Build', '⚙'],
+            ['AI Chat', '✦'],
+            ['Image Flow', '◇'],
+            ['Google Drive', '☁'],
+            ['Settings', '⚙']
+          ]
+
+          function Header({ active, setActive }) {
+            return (
+              <header className="topbar">
+                <button className="brand" onClick={() => setActive('Home')}>
+                  <div className="logo">OU</div>
+                  <div>
+                    <div className="brand-name">OU The Builder</div>
+                    <div className="brand-subtitle">Web-Based Application</div>
+                  </div>
+                </button>
+
+                <div className="online">
+                  <span></span>
+                  Online
+                </div>
+              </header>
+            )
+          }
+
+          function Sidebar({ active, setActive }) {
+            return (
+              <aside className="sidebar">
+                <div className="nav-title">BUILDER</div>
+
+                {navigation.map(([name, icon]) => (
+                  <button
+                    key={name}
+                    className={`nav-item ${active === name ? 'active' : ''}`}
+                    onClick={() => setActive(name)}
+                  >
+                    <span className="nav-icon">{icon}</span>
+                    <span>{name}</span>
+                  </button>
+                ))}
+              </aside>
+            )
+          }
+
+          function PageTitle({ eyebrow, title, description }) {
+            return (
+              <div className="page-title">
+                <div>
+                  <div className="eyebrow">{eyebrow}</div>
+                  <h1>{title}</h1>
+                  <p>{description}</p>
+                </div>
+              </div>
+            )
+          }
+
+          function Home({ setActive }) {
+            const [message, setMessage] = useState('')
+
+            const sendMessage = () => {
+              if (!message.trim()) return
+              setMessage('')
+              setActive('AI Chat')
+            }
+
+            return (
+              <>
+                <section className="hero">
+                  <div>
+                    <div className="eyebrow">FOUNDATION STAGE</div>
+                    <h1>Welcome to <span>OU The Builder</span></h1>
+                    <p>
+                      Build, manage, visualize and compile your projects
+                      from one web-based workspace.
+                    </p>
+                  </div>
+
+                  <div className="hero-badge">
+                    <strong>v0.2.0</strong>
+                    <span>Interactive Foundation</span>
+                  </div>
+                </section>
+
+                <section className="cards">
+                  <div className="card">
+                    <div className="card-icon">✦</div>
+                    <h2>AI Builder</h2>
+                    <p>Use AI as the central control interface for your builder.</p>
+                    <button onClick={() => setActive('AI Chat')}>
+                      Open AI Chat
+                    </button>
+                  </div>
+
+                  <div className="card">
+                    <div className="card-icon">▣</div>
+                    <h2>Projects</h2>
+                    <p>Create, import, manage and export your projects.</p>
+                    <button onClick={() => setActive('Projects')}>
+                      Open Projects
+                    </button>
+                  </div>
+
+                  <div className="card">
+                    <div className="card-icon">⚙</div>
+                    <h2>Build</h2>
+                    <p>Prepare projects for remote compilation and APK generation.</p>
+                    <button onClick={() => setActive('Build')}>
+                      Open Build
+                    </button>
+                  </div>
+
+                  <div className="card">
+                    <div className="card-icon">◇</div>
+                    <h2>Image Flow</h2>
+                    <p>Visualize application screens, buttons and navigation.</p>
+                    <button onClick={() => setActive('Image Flow')}>
+                      Open Image Flow
+                    </button>
+                  </div>
+                </section>
+
+                <section className="workspace">
+                  <div className="panel">
+                    <div className="panel-header">
+                      <div>
+                        <h2>AI Chat</h2>
+                        <p>Central Builder Control</p>
+                      </div>
+                      <span className="status-badge">Ready</span>
+                    </div>
+
+                    <div className="chat-area">
+                      <div className="assistant-message">
+                        <div className="avatar">OU</div>
+                        <div>
+                          <strong>OU Builder</strong>
+                          <p>
+                            Tell me what you want to build, import, inspect
+                            or compile.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="chat-input">
+                      <input
+                        value={message}
+                        onChange={(e) => setMessage(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') sendMessage()
+                        }}
+                        placeholder="Tell OU The Builder what to do..."
+                      />
+                      <button onClick={sendMessage}>Send</button>
+                    </div>
+                  </div>
+
+                  <SystemStatus />
+                </section>
+
+                <section className="lower-grid">
+                  <div className="panel">
+                    <div className="panel-header">
+                      <div>
+                        <h2>Current Project</h2>
+                        <p>No project selected</p>
+                      </div>
+                    </div>
+
+                    <div className="empty-state">
+                      <div className="empty-icon">▣</div>
+                      <strong>No project selected</strong>
+                      <p>Create or import a project to begin.</p>
+                      <button onClick={() => setActive('Projects')}>
+                        Manage Projects
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="panel">
+                    <div className="panel-header">
+                      <div>
+                        <h2>Quick Actions</h2>
+                        <p>Common builder actions</p>
+                      </div>
+                    </div>
+
+                    <div className="quick-actions">
+                      <button onClick={() => setActive('Projects')}>＋ New Project</button>
+                      <button onClick={() => setActive('Files')}>↑ Import Project</button>
+                      <button onClick={() => setActive('Build')}>⚙ Build Project</button>
+                      <button onClick={() => setActive('Image Flow')}>◇ View Flow</button>
+                    </div>
+                  </div>
+                </section>
+
+                <section className="panel activity">
+                  <div className="panel-header">
+                    <div>
+                      <h2>Recent Activity</h2>
+                      <p>Latest builder activity</p>
+                    </div>
+                  </div>
+
+                  <div className="activity-row">
+                    <span className="activity-dot"></span>
+                    <div>
+                      <strong>OU The Builder WBA is ready</strong>
+                      <p>Interactive navigation foundation is active.</p>
+                    </div>
+                    <time>Now</time>
+                  </div>
+                </section>
+              </>
+            )
+          }
+
+          function SystemStatus() {
+            return (
+              <div className="panel">
+                <div className="panel-header">
+                  <div>
+                    <h2>System Status</h2>
+                    <p>Foundation services</p>
+                  </div>
+                </div>
+
+                <div className="status-list">
+                  <div>
+                    <span>WBA Interface</span>
+                    <b>Ready</b>
+                  </div>
+                  <div>
+                    <span>Project System</span>
+                    <b>Ready</b>
+                  </div>
+                  <div>
+                    <span>Build System</span>
+                    <b>Foundation</b>
+                  </div>
+                  <div>
+                    <span>AI Interface</span>
+                    <b>Ready</b>
+                  </div>
+                </div>
+              </div>
+            )
+          }
+
+          function Projects() {
+            const [projects, setProjects] = useState([])
+            const [name, setName] = useState('')
+
+            const createProject = () => {
+              const value = name.trim()
+              if (!value) return
+              setProjects([...projects, value])
+              setName('')
+            }
+
+            return (
+              <>
+                <PageTitle
+                  eyebrow="PROJECT MANAGER"
+                  title="Projects"
+                  description="Create and manage your builder projects."
+                />
+
+                <div className="panel">
+                  <div className="section-heading">
+                    <div>
+                      <h2>Create Project</h2>
+                      <p>Start a new project workspace.</p>
+                    </div>
+                  </div>
+
+                  <div className="form-row">
+                    <input
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') createProject()
+                      }}
+                      placeholder="Project name"
+                    />
+                    <button className="primary" onClick={createProject}>
+                      + Create Project
+                    </button>
+                  </div>
+                </div>
+
+                <div className="panel">
+                  <div className="section-heading">
+                    <div>
+                      <h2>Your Projects</h2>
+                      <p>{projects.length} project(s)</p>
+                    </div>
+                  </div>
+
+                  {projects.length === 0 ? (
+                    <div className="empty-state">
+                      <div className="empty-icon">▣</div>
+                      <strong>No projects yet</strong>
+                      <p>Your created projects will appear here.</p>
+                    </div>
+                  ) : (
+                    <div className="project-list">
+                      {projects.map((project, index) => (
+                        <div className="project-row" key={`${project}-${index}`}>
+                          <div className="project-icon">▣</div>
+                          <div>
+                            <strong>{project}</strong>
+                            <span>Local WBA project</span>
+                          </div>
+                          <button>Open</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </>
+            )
+          }
+
+          function Files() {
+            const [files, setFiles] = useState([])
+
+            const selectFiles = (event) => {
+              const selected = Array.from(event.target.files || [])
+              setFiles(selected)
+            }
+
+            return (
+              <>
+                <PageTitle
+                  eyebrow="FILE MANAGER"
+                  title="Files"
+                  description="Manage project files and resources."
+                />
+
+                <div className="panel upload-panel">
+                  <div className="upload-icon">↑</div>
+                  <h2>Import Project Files</h2>
+                  <p>
+                    Select ZIP, source files, images, documents, media or other
+                    project resources.
+                  </p>
+
+                  <label className="upload-button">
+                    Select Files
+                    <input type="file" multiple onChange={selectFiles} />
+                  </label>
+                </div>
+
+                <div className="panel">
+                  <div className="section-heading">
+                    <div>
+                      <h2>Selected Files</h2>
+                      <p>{files.length} file(s) selected</p>
+                    </div>
+                  </div>
+
+                  {files.length === 0 ? (
+                    <div className="empty-state">
+                      <div className="empty-icon">▤</div>
+                      <strong>No files selected</strong>
+                      <p>Imported project resources will appear here.</p>
+                    </div>
+                  ) : (
+                    <div className="file-list">
+                      {files.map((file) => (
+                        <div className="file-row" key={`${file.name}-${file.size}`}>
+                          <span>▤</span>
+                          <div>
+                            <strong>{file.name}</strong>
+                            <small>{Math.round(file.size / 1024)} KB</small>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </>
+            )
+          }
+
+          function Build() {
+            const [target, setTarget] = useState('Android APK')
+            const [building, setBuilding] = useState(false)
+            const [logs, setLogs] = useState([
+              'BUILD CONSOLE',
+              'Waiting for a project...'
+            ])
+
+            const runBuild = () => {
+              setBuilding(true)
+              setLogs([
+                'BUILD CONSOLE',
+                'Project preparation started',
+                `Target: ${target}`,
+                'Checking compatibility...',
+                'Preparing remote build environment...',
+                'Build request prepared.',
+                'Remote APK compilation will be connected in the next build-system stage.'
+              ])
+
+              setTimeout(() => {
+                setBuilding(false)
+                setLogs((current) => [
+                  ...current,
+                  'Foundation build simulation complete.'
+                ])
+              }, 1200)
+            }
+
+            return (
+              <>
+                <PageTitle
+                  eyebrow="BUILD SYSTEM"
+                  title="Build"
+                  description="Prepare and control project compilation."
+                />
+
+                <div className="build-grid">
+                  <div className="panel">
+                    <div className="section-heading">
+                      <div>
+                        <h2>Build Target</h2>
+                        <p>Select the target platform.</p>
+                      </div>
+                    </div>
+
+                    <div className="target-options">
+                      {['Android APK', 'Web App', 'Hybrid App'].map((item) => (
+                        <button
+                          key={item}
+                          className={target === item ? 'target active' : 'target'}
+                          onClick={() => setTarget(item)}
+                        >
+                          <span>{item === 'Android APK' ? '▣' : item === 'Web App' ? '◎' : '◇'}</span>
+                          <strong>{item}</strong>
+                          <small>{item === 'Android APK' ? 'Android package' : 'Target option'}</small>
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className="build-action">
+                      <button className="primary big" onClick={runBuild} disabled={building}>
+                        {building ? 'Preparing Build...' : '▶ Run Build'}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="panel">
+                    <div className="section-heading">
+                      <div>
+                        <h2>Compatibility</h2>
+                        <p>Foundation checks</p>
+                      </div>
+                    </div>
+
+                    <div className="check-list">
+                      <div><span>✓</span> Project structure</div>
+                      <div><span>✓</span> Target selection</div>
+                      <div><span>✓</span> Build environment</div>
+                      <div><span>•</span> Resource validation</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="panel console">
+                  <div className="panel-header">
+                    <div>
+                      <h2>Build Console</h2>
+                      <p>Build process output</p>
+                    </div>
+                  </div>
+
+                  <div className="console-output">
+                    {logs.map((line, index) => (
+                      <div key={index} className={index === 0 ? 'console-title' : ''}>
+                        {line}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )
+          }
+
+          function AIChat() {
+            const [input, setInput] = useState('')
+            const [messages, setMessages] = useState([
+              {
+                role: 'assistant',
+                text: 'Hello! I am the OU The Builder control interface. What would you like to build?'
+              }
+            ])
+
+            const send = () => {
+              const text = input.trim()
+              if (!text) return
+
+              setMessages([
+                ...messages,
+                { role: 'user', text },
+                {
+                  role: 'assistant',
+                  text: 'Command received. AI agent execution will be connected in the next AI integration stage.'
+                }
+              ])
+              setInput('')
+            }
+
+            return (
+              <>
+                <PageTitle
+                  eyebrow="AI CONTROL"
+                  title="AI Chat"
+                  description="The central conversational interface for OU The Builder."
+                />
+
+                <div className="panel full-chat">
+                  <div className="chat-messages">
+                    {messages.map((message, index) => (
+                      <div
+                        key={index}
+                        className={message.role === 'user' ? 'message user' : 'message'}
+                      >
+                        <div className="avatar">
+                          {message.role === 'user' ? 'YOU' : 'OU'}
+                        </div>
+                        <div>
+                          <strong>{message.role === 'user' ? 'You' : 'OU Builder'}</strong>
+                          <p>{message.text}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="chat-input">
+                    <input
+                      value={input}
+                      onChange={(e) => setInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') send()
+                      }}
+                      placeholder="Type a builder command..."
+                    />
+                    <button onClick={send}>Send</button>
+                  </div>
+                </div>
+              </>
+            )
+          }
+
+          function ImageFlow() {
+            const screens = [
+              ['Home', '⌂'],
+              ['Projects', '▣'],
+              ['Build', '⚙'],
+              ['AI Chat', '✦']
+            ]
+
+            return (
+              <>
+                <PageTitle
+                  eyebrow="VISUAL FLOW"
+                  title="Image Flow"
+                  description="Visual representation of application screens and navigation."
+                />
+
+                <div className="panel">
+                  <div className="flow-toolbar">
+                    <div>
+                      <h2>Application Flow</h2>
+                      <p>Foundation navigation map</p>
+                    </div>
+                    <button>＋ Add Screen</button>
+                  </div>
+
+                  <div className="flow">
+                    {screens.map(([name, icon], index) => (
+                      <React.Fragment key={name}>
+                        <div className="flow-node">
+                          <div className="flow-icon">{icon}</div>
+                          <strong>{name}</strong>
+                          <small>Screen</small>
+                        </div>
+                        {index < screens.length - 1 && (
+                          <div className="flow-arrow">→</div>
+                        )}
+                      </React.Fragment>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )
+          }
+
+          function GoogleDrive() {
+            return (
+              <>
+                <PageTitle
+                  eyebrow="STORAGE"
+                  title="Google Drive"
+                  description="Connect cloud storage for project resources and exports."
+                />
+
+                <div className="panel drive-card">
+                  <div className="drive-icon">☁</div>
+                  <h2>Google Drive Integration</h2>
+                  <p>
+                    Google Drive support will allow projects and resources to
+                    be stored and reused through a secure user connection.
+                  </p>
+                  <button className="primary">Connect Google Drive</button>
+                  <small>
+                    Connection is not active in the foundation stage.
+                  </small>
+                </div>
+              </>
+            )
+          }
+
+          function Settings() {
+            const [dark, setDark] = useState(true)
+            const [notifications, setNotifications] = useState(true)
+
+            return (
+              <>
+                <PageTitle
+                  eyebrow="APPLICATION SETTINGS"
+                  title="Settings"
+                  description="Configure your OU The Builder experience."
+                />
+
+                <div className="settings-list">
+                  <div className="panel setting-row">
+                    <div>
+                      <h2>Dark Interface</h2>
+                      <p>Use the dark builder interface.</p>
+                    </div>
+                    <button
+                      className={dark ? 'toggle on' : 'toggle'}
+                      onClick={() => setDark(!dark)}
+                    >
+                      {dark ? 'ON' : 'OFF'}
+                    </button>
+                  </div>
+
+                  <div className="panel setting-row">
+                    <div>
+                      <h2>Notifications</h2>
+                      <p>Show builder status notifications.</p>
+                    </div>
+                    <button
+                      className={notifications ? 'toggle on' : 'toggle'}
+                      onClick={() => setNotifications(!notifications)}
+                    >
+                      {notifications ? 'ON' : 'OFF'}
+                    </button>
+                  </div>
+
+                  <div className="panel">
+                    <h2>Application Information</h2>
+                    <div className="info-grid">
+                      <span>Application</span>
+                      <strong>OU The Builder</strong>
+                      <span>Version</span>
+                      <strong>0.2.0</strong>
+                      <span>Platform</span>
+                      <strong>Web-Based Application</strong>
+                      <span>Stage</span>
+                      <strong>Interactive Foundation</strong>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )
+          }
+
+          function App() {
+            const [active, setActive] = useState('Home')
+
+            const renderPage = () => {
+              switch (active) {
+                case 'Projects':
+                  return <Projects />
+                case 'Files':
+                  return <Files />
+                case 'Build':
+                  return <Build />
+                case 'AI Chat':
+                  return <AIChat />
+                case 'Image Flow':
+                  return <ImageFlow />
+                case 'Google Drive':
+                  return <GoogleDrive />
+                case 'Settings':
+                  return <Settings />
+                default:
+                  return <Home setActive={setActive} />
+              }
+            }
+
+            return (
+              <div className="app">
+                <Header active={active} setActive={setActive} />
+
+                <div className="layout">
+                  <Sidebar active={active} setActive={setActive} />
+
+                  <main className="main">
+                    {renderPage()}
+
+                    <footer>
+                      OU The Builder · Web-Based Application · v0.2.0 · Interactive Foundation
+                    </footer>
+                  </main>
+                </div>
+              </div>
+            )
+          }
+
+          export default App
+          EOF
+
+          cat > src/App.css <<'EOF'
+          * {
+            box-sizing: border-box;
+          }
+
+          :root {
+            font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            color: #eef4ff;
+            background: #050816;
+          }
+
+          body {
+            margin: 0;
+            min-width: 320px;
+            background:
+              radial-gradient(circle at 20% 10%, rgba(45, 91, 255, .13), transparent 30%),
+              radial-gradient(circle at 80% 30%, rgba(139, 52, 255, .10), transparent 28%),
+              #050816;
+          }
+
+          button,
+          input {
+            font: inherit;
+          }
+
+          button {
+            cursor: pointer;
+          }
+
+          button:disabled {
+            opacity: .6;
+            cursor: wait;
+          }
+
+          .app {
+            min-height: 100vh;
+          }
+
+          .topbar {
+            height: 76px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 28px;
+            border-bottom: 1px solid rgba(130, 160, 220, .15);
+            background: rgba(5, 8, 22, .94);
+            backdrop-filter: blur(16px);
+            position: sticky;
+            top: 0;
+            z-index: 20;
+          }
+
+          .brand {
+            display: flex;
+            align-items: center;
+            gap: 13px;
+            border: 0;
+            color: white;
+            background: transparent;
+            padding: 0;
+            text-align: left;
+          }
+
+          .logo {
+            width: 43px;
+            height: 43px;
+            display: grid;
+            place-items: center;
+            border-radius: 12px;
+            font-weight: 900;
+            background: linear-gradient(135deg, #168cff, #8d45ff);
+            box-shadow: 0 0 25px rgba(62, 112, 255, .35);
+          }
+
+          .brand-name {
+            font-weight: 800;
+            font-size: 18px;
+          }
+
+          .brand-subtitle {
+            color: #8290aa;
+            font-size: 12px;
+            margin-top: 2px;
+          }
+
+          .online {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #7fe6b2;
+            font-size: 13px;
+          }
+
+          .online span,
+          .activity-dot {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #35dc8c;
+            box-shadow: 0 0 10px rgba(53, 220, 140, .7);
+          }
+
+          .layout {
+            display: flex;
+          }
+
+          .sidebar {
+            width: 235px;
+            min-height: calc(100vh - 76px);
+            padding: 25px 14px;
+            border-right: 1px solid rgba(130, 160, 220, .12);
+            background: rgba(4, 7, 19, .72);
+          }
+
+          .nav-title {
+            color: #5f6c85;
+            font-size: 10px;
+            font-weight: 800;
+            letter-spacing: 1.5px;
+            padding: 0 13px 12px;
+          }
+
+          .nav-item {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            gap: 13px;
+            border: 0;
+            border-radius: 10px;
+            padding: 12px 13px;
+            margin-bottom: 5px;
+            color: #8793aa;
+            background: transparent;
+            text-align: left;
+          }
+
+          .nav-item:hover,
+          .nav-item.active {
+            color: #fff;
+            background: linear-gradient(90deg, rgba(37, 112, 255, .20), rgba(117, 61, 255, .12));
+          }
+
+          .nav-item.active {
+            box-shadow: inset 3px 0 0 #348cff;
+          }
+
+          .nav-icon {
+            width: 22px;
+            text-align: center;
+            color: #56a5ff;
+          }
+
+          .main {
+            width: 100%;
+            max-width: 1500px;
+            margin: 0 auto;
+            padding: 30px;
+          }
+
+          .hero,
+          .page-title {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 20px;
+            padding: 32px;
+            margin-bottom: 20px;
+            border: 1px solid rgba(83, 127, 220, .18);
+            border-radius: 18px;
+            background:
+              linear-gradient(120deg, rgba(27, 77, 155, .17), rgba(92, 47, 150, .13)),
+              rgba(11, 17, 39, .72);
+          }
+
+          .page-title {
+            min-height: 150px;
+          }
+
+          .eyebrow {
+            color: #4ca1ff;
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: 1.5px;
+            margin-bottom: 8px;
+          }
+
+          h1 {
+            margin: 0;
+            font-size: clamp(27px, 4vw, 42px);
+          }
+
+          .hero h1 span {
+            background: linear-gradient(90deg, #48a7ff, #a35cff);
+            -webkit-background-clip: text;
+            color: transparent;
+          }
+
+          .hero p,
+          .page-title p {
+            color: #8c99b2;
+            max-width: 720px;
+            margin-bottom: 0;
+            line-height: 1.6;
+          }
+
+          .hero-badge {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-width: 110px;
+            padding: 13px;
+            border: 1px solid rgba(83, 127, 220, .2);
+            border-radius: 12px;
+            background: rgba(0, 0, 0, .15);
+          }
+
+          .hero-badge span {
+            color: #77849d;
+            font-size: 11px;
+            margin-top: 3px;
+            text-align: center;
+          }
+
+          .cards {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 14px;
+          }
+
+          .card,
+          .panel {
+            border: 1px solid rgba(103, 131, 193, .15);
+            border-radius: 15px;
+            background: rgba(12, 18, 40, .72);
+          }
+
+          .card {
+            padding: 20px;
+          }
+
+          .card-icon {
+            width: 40px;
+            height: 40px;
+            display: grid;
+            place-items: center;
+            margin-bottom: 15px;
+            border-radius: 11px;
+            color: #69b5ff;
+            background: rgba(49, 124, 255, .12);
+            font-size: 20px;
+          }
+
+          .card h2,
+          .panel h2 {
+            margin: 0;
+            font-size: 17px;
+          }
+
+          .card p,
+          .panel-header p,
+          .section-heading p {
+            color: #7f8da7;
+            font-size: 13px;
+            line-height: 1.55;
+          }
+
+          .card button,
+          .empty-state button,
+          .flow-toolbar button,
+          .project-row button {
+            border: 1px solid rgba(67, 145, 255, .28);
+            border-radius: 8px;
+            padding: 8px 11px;
+            color: #b9dcff;
+            background: rgba(44, 119, 255, .10);
+          }
+
+          .workspace,
+          .lower-grid,
+          .build-grid {
+            display: grid;
+            grid-template-columns: 1.55fr 1fr;
+            gap: 14px;
+            margin-top: 14px;
+          }
+
+          .panel {
+            padding: 20px;
+          }
+
+          .panel-header,
+          .section-heading,
+          .flow-toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 16px;
+          }
+
+          .panel-header p,
+          .section-heading p {
+            margin: 4px 0 0;
+          }
+
+          .status-badge {
+            border-radius: 20px;
+            padding: 5px 9px;
+            font-size: 11px;
+            background: rgba(53, 220, 140, .10);
+            color: #7fe6b2;
+          }
+
+          .chat-area {
+            min-height: 130px;
+            padding: 15px;
+            border-radius: 11px;
+            background: rgba(2, 5, 15, .45);
+          }
+
+          .assistant-message,
+          .message {
+            display: flex;
+            gap: 11px;
+            color: #dbe5f8;
+            font-size: 13px;
+          }
+
+          .assistant-message p,
+          .message p {
+            color: #8491aa;
+            margin: 5px 0;
+            line-height: 1.6;
+          }
+
+          .avatar {
+            width: 34px;
+            height: 34px;
+            flex: 0 0 34px;
+            display: grid;
+            place-items: center;
+            border-radius: 9px;
+            background: linear-gradient(135deg, #237eff, #8545ff);
+            font-size: 9px;
+            font-weight: 800;
+          }
+
+          .chat-input {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+          }
+
+          .chat-input input,
+          .form-row input {
+            min-width: 0;
+            flex: 1;
+            border: 1px solid rgba(103, 131, 193, .18);
+            border-radius: 9px;
+            outline: none;
+            padding: 11px;
+            color: white;
+            background: rgba(3, 7, 18, .65);
+          }
+
+          .chat-input button,
+          .primary {
+            border: 0;
+            border-radius: 9px;
+            padding: 10px 16px;
+            color: white;
+            background: linear-gradient(135deg, #197eff, #7546ed);
+          }
+
+          .big {
+            padding: 13px 22px;
+            font-weight: 700;
+          }
+
+          .status-list {
+            display: grid;
+            gap: 11px;
+          }
+
+          .status-list div,
+          .check-list div {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+            padding: 12px;
+            border-radius: 9px;
+            background: rgba(4, 8, 20, .45);
+            color: #8996ae;
+            font-size: 13px;
+          }
+
+          .status-list b {
+            color: #72dfa8;
+            font-weight: 600;
+          }
+
+          .empty-state {
+            text-align: center;
+            padding: 22px 10px 8px;
+          }
+
+          .empty-icon {
+            font-size: 30px;
+            color: #568dff;
+            margin-bottom: 10px;
+          }
+
+          .empty-state strong {
+            display: block;
+          }
+
+          .empty-state p {
+            color: #77849e;
+            font-size: 13px;
+            margin: 7px 0 15px;
+          }
+
+          .quick-actions {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 9px;
+          }
+
+          .quick-actions button {
+            border: 1px solid rgba(103, 131, 193, .15);
+            border-radius: 9px;
+            padding: 13px 8px;
+            color: #aebbd2;
+            background: rgba(4, 8, 20, .45);
+          }
+
+          .activity {
+            margin-top: 14px;
+          }
+
+          .activity-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 13px;
+            border-radius: 9px;
+            background: rgba(4, 8, 20, .45);
+            font-size: 13px;
+          }
+
+          .activity-row p {
+            color: #77849e;
+            margin: 4px 0 0;
+          }
+
+          .activity-row time {
+            margin-left: auto;
+            color: #65718a;
+            font-size: 11px;
+          }
+
+          .form-row {
+            display: flex;
+            gap: 10px;
+          }
+
+          .project-list,
+          .file-list {
+            display: grid;
+            gap: 9px;
+          }
+
+          .project-row,
+          .file-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 13px;
+            border-radius: 10px;
+            background: rgba(4, 8, 20, .45);
+          }
+
+          .project-icon {
+            width: 38px;
+            height: 38px;
+            display: grid;
+            place-items: center;
+            border-radius: 9px;
+            color: #62aaff;
+            background: rgba(44, 119, 255, .12);
+          }
+
+          .project-row div:nth-child(2),
+          .file-row div {
+            flex: 1;
+          }
+
+          .project-row span,
+          .file-row small {
+            display: block;
+            color: #68758e;
+            font-size: 11px;
+            margin-top: 3px;
+          }
+
+          .upload-panel {
+            text-align: center;
+            padding: 35px 20px;
+            margin-bottom: 14px;
+          }
+
+          .upload-icon,
+          .drive-icon {
+            font-size: 38px;
+            color: #55a8ff;
+            margin-bottom: 10px;
+          }
+
+          .upload-panel p,
+          .drive-card p {
+            max-width: 600px;
+            margin: 8px auto 18px;
+            color: #7f8da7;
+            line-height: 1.6;
+          }
+
+          .upload-button {
+            display: inline-block;
+            padding: 11px 17px;
+            border-radius: 9px;
+            color: white;
+            background: linear-gradient(135deg, #197eff, #7546ed);
+            cursor: pointer;
+          }
+
+          .upload-button input {
+            display: none;
+          }
+
+          .target-options {
+            display: grid;
+            gap: 9px;
+          }
+
+          .target {
+            display: grid;
+            grid-template-columns: 35px 1fr;
+            text-align: left;
+            border: 1px solid rgba(103, 131, 193, .15);
+            border-radius: 10px;
+            padding: 13px;
+            color: #b4c1d8;
+            background: rgba(4, 8, 20, .45);
+          }
+
+          .target span {
+            grid-row: span 2;
+            color: #5faaff;
+            font-size: 20px;
+          }
+
+          .target small {
+            color: #68758e;
+            margin-top: 3px;
+          }
+
+          .target.active {
+            border-color: rgba(67, 145, 255, .55);
+            background: rgba(44, 119, 255, .12);
+          }
+
+          .build-action {
+            margin-top: 15px;
+          }
+
+          .check-list {
+            display: grid;
+            gap: 9px;
+          }
+
+          .check-list div {
+            justify-content: flex-start;
+          }
+
+          .check-list span {
+            color: #62dca0;
+          }
+
+          .console {
+            margin-top: 14px;
+          }
+
+          .console-output {
+            min-height: 220px;
+            padding: 15px;
+            border-radius: 10px;
+            overflow: auto;
+            color: #8fd4ff;
+            background: #02040b;
+            font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+            font-size: 12px;
+            line-height: 1.8;
+            white-space: pre-wrap;
+          }
+
+          .console-title {
+            color: #fff;
+            font-weight: 800;
+            margin-bottom: 8px;
+          }
+
+          .full-chat {
+            min-height: 520px;
+            display: flex;
+            flex-direction: column;
+          }
+
+          .chat-messages {
+            flex: 1;
+            display: grid;
+            align-content: start;
+            gap: 14px;
+            padding: 10px;
+          }
+
+          .message {
+            padding: 14px;
+            border-radius: 10px;
+            background: rgba(4, 8, 20, .45);
+          }
+
+          .message.user {
+            background: rgba(44, 119, 255, .10);
+          }
+
+          .flow {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 12px;
+            min-height: 280px;
+            padding: 25px 5px;
+          }
+
+          .flow-node {
+            min-width: 125px;
+            padding: 18px 14px;
+            text-align: center;
+            border: 1px solid rgba(67, 145, 255, .25);
+            border-radius: 12px;
+            background: rgba(4, 8, 20, .65);
+          }
+
+          .flow-icon {
+            font-size: 25px;
+            color: #62aaff;
+            margin-bottom: 7px;
+          }
+
+          .flow-node small {
+            display: block;
+            color: #65718a;
+            margin-top: 4px;
+          }
+
+          .flow-arrow {
+            color: #5da8ff;
+            font-size: 24px;
+          }
+
+          .drive-card {
+            text-align: center;
+            padding: 50px 20px;
+          }
+
+          .drive-card small {
+            display: block;
+            margin-top: 15px;
+            color: #68758e;
+          }
+
+          .settings-list {
+            display: grid;
+            gap: 14px;
+          }
+
+          .setting-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+          }
+
+          .setting-row p {
+            color: #7f8da7;
+            font-size: 13px;
+          }
+
+          .toggle {
+            min-width: 60px;
+            border: 1px solid rgba(103, 131, 193, .2);
+            border-radius: 20px;
+            padding: 7px 12px;
+            color: #78869f;
+            background: rgba(4, 8, 20, .5);
+          }
+
+          .toggle.on {
+            color: #fff;
+            border-color: rgba(67, 145, 255, .4);
+            background: rgba(44, 119, 255, .2);
+          }
+
+          .info-grid {
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            gap: 1px;
+            margin-top: 15px;
+            overflow: hidden;
+            border-radius: 9px;
+          }
+
+          .info-grid span,
+          .info-grid strong {
+            padding: 11px;
+            background: rgba(4, 8, 20, .45);
+            font-size: 13px;
+          }
+
+          .info-grid span {
+            color: #68758e;
+          }
+
+          footer {
+            padding: 25px 5px 8px;
+            text-align: center;
+            color: #56637b;
+            font-size: 11px;
+          }
+
+          @media (max-width: 1050px) {
+            .cards {
+              grid-template-columns: repeat(2, 1fr);
+            }
+
+            .sidebar {
+              width: 200px;
+            }
+          }
+
+          @media (max-width: 760px) {
+            .topbar {
+              padding: 0 15px;
+              height: 68px;
+            }
+
+            .sidebar {
+              width: 100%;
+              min-height: auto;
+              display: flex;
+              overflow-x: auto;
+              padding: 8px;
+              border-right: 0;
+              border-bottom: 1px solid rgba(130, 160, 220, .12);
+            }
+
+            .layout {
+              display: block;
+            }
+
+            .nav-title {
+              display: none;
+            }
+
+            .nav-item {
+              min-width: max-content;
+              width: auto;
+              margin: 0 2px;
+              padding: 10px 12px;
+            }
+
+            .nav-item.active {
+              box-shadow: inset 0 -3px 0 #348cff;
+            }
+
+            .nav-item span:last-child {
+              font-size: 12px;
+            }
+
+            .main {
+              padding: 15px;
+            }
+
+            .hero,
+            .page-title {
+              padding: 22px;
+              align-items: flex-start;
+            }
+
+            .hero-badge {
+              display: none;
+            }
+
+            .cards,
+            .workspace,
+            .lower-grid,
+            .build-grid {
+              grid-template-columns: 1fr;
+            }
+
+            .cards {
+              gap: 10px;
+            }
+
+            .brand-subtitle {
+              display: none;
+            }
+
+            .flow {
+              flex-direction: column;
+            }
+
+            .flow-arrow {
+              transform: rotate(90deg);
+            }
+
+            .form-row {
+              flex-direction: column;
+            }
+
+            .info-grid {
+              grid-template-columns: 1fr;
+            }
+          }
+
+          @media (max-width: 430px) {
+            .brand-name {
+              font-size: 15px;
+            }
+
+            .online {
+              font-size: 11px;
+            }
+
+            .hero,
+            .page-title {
+              padding: 18px;
+            }
+
+            h1 {
+              font-size: 27px;
+            }
+
+            .quick-actions {
+              grid-template-columns: 1fr;
+            }
+
+            .setting-row {
+              align-items: flex-start;
+              gap: 15px;
+            }
+          }
+          EOF
+
+          touch public/.nojekyll
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build WBA
+        run: npm run build
+
+      - name: Verify build output
+        run: |
+          test -f dist/index.html
+          echo "OU The Builder WBA build completed successfully."
+          find dist -maxdepth 2 -type f | sort
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: ./dist
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
