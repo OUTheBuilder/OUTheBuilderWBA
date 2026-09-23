@@ -1,0 +1,1119 @@
+name: OU The Builder WBA - Access Control Foundation
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-24.04
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js 24
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+
+      - name: Create OU The Builder WBA foundation
+        shell: bash
+        run: |
+          set -e
+
+          rm -rf app
+          mkdir -p app/src
+
+          cat > package.json <<'EOF'
+          {
+            "name": "ou-the-builder-wba",
+            "version": "0.3.0",
+            "private": true,
+            "type": "module",
+            "scripts": {
+              "dev": "vite",
+              "build": "vite build",
+              "preview": "vite preview"
+            },
+            "dependencies": {
+              "@vitejs/plugin-react": "^5.1.0",
+              "vite": "^7.1.7",
+              "react": "^19.1.1",
+              "react-dom": "^19.1.1"
+            },
+            "devDependencies": {}
+          }
+          EOF
+
+          cat > index.html <<'EOF'
+          <!doctype html>
+          <html lang="en">
+            <head>
+              <meta charset="UTF-8" />
+              <meta
+                name="viewport"
+                content="width=device-width, initial-scale=1.0"
+              />
+              <meta
+                name="description"
+                content="OU The Builder Web-Based Application"
+              />
+              <title>OU The Builder</title>
+            </head>
+            <body>
+              <div id="root"></div>
+              <script type="module" src="/src/main.jsx"></script>
+            </body>
+          </html>
+          EOF
+
+          cat > vite.config.js <<'EOF'
+          import { defineConfig } from 'vite'
+          import react from '@vitejs/plugin-react'
+
+          export default defineConfig({
+            plugins: [react()],
+            base: '/OUTheBuilderWBA/'
+          })
+          EOF
+
+          cat > public-placeholder.txt <<'EOF'
+          OU The Builder
+          EOF
+
+          mkdir -p src
+
+          cat > src/main.jsx <<'EOF'
+          import React from 'react'
+          import { createRoot } from 'react-dom/client'
+          import './style.css'
+
+          const DEFAULT_SUPER_ADMIN_CODE = 'Admins123'
+
+          const ROLE_RULES = {
+            superadmin: {
+              name: 'Super Admin',
+              buildLimit: 'Unlimited',
+              description: 'Full system control'
+            },
+            admin: {
+              name: 'Admin',
+              buildLimit: 'Unlimited',
+              description: 'Broad application access'
+            },
+            member: {
+              name: 'Member',
+              buildLimit: 'Unlimited',
+              description: 'Limited modification access'
+            },
+            guest: {
+              name: 'Guest',
+              buildLimit: '1 successful build',
+              description: 'Trial access'
+            }
+          }
+
+          const DEFAULT_LIMITS = {
+            admins: 3,
+            guestPerAdmin: 10,
+            guestPerMember: 10,
+            guestBuilds: 1,
+            memberBuilds: -1,
+            adminBuilds: -1
+          }
+
+          function App() {
+            const [authenticated, setAuthenticated] = React.useState(false)
+            const [role, setRole] = React.useState(null)
+            const [screen, setScreen] = React.useState('Home')
+            const [code, setCode] = React.useState('')
+            const [message, setMessage] = React.useState('')
+            const [requestSent, setRequestSent] = React.useState(false)
+
+            const [limits, setLimits] = React.useState(DEFAULT_LIMITS)
+
+            const [requests, setRequests] = React.useState([
+              {
+                id: 1,
+                requester: 'Demo requester',
+                roleRequested: 'Member',
+                status: 'Pending',
+                message: 'Requesting access to OU The Builder.'
+              }
+            ])
+
+            const [replyCode, setReplyCode] = React.useState('')
+
+            function login() {
+              const value = code.trim()
+
+              if (!value) {
+                setMessage('Please enter an access code.')
+                return
+              }
+
+              /*
+               * FOUNDATION DEMO ONLY:
+               * The permanent Super Admin credential is represented here
+               * only to demonstrate the UI flow.
+               *
+               * A production implementation must move authentication,
+               * credential storage, sessions and authorization to the backend.
+               */
+              if (value === DEFAULT_SUPER_ADMIN_CODE) {
+                setRole('superadmin')
+                setAuthenticated(true)
+                setMessage('')
+                return
+              }
+
+              if (value.toUpperCase().startsWith('ADMIN-')) {
+                setRole('admin')
+                setAuthenticated(true)
+                setMessage('')
+                return
+              }
+
+              if (value.toUpperCase().startsWith('MEMBER-')) {
+                setRole('member')
+                setAuthenticated(true)
+                setMessage('')
+                return
+              }
+
+              if (value.toUpperCase().startsWith('GUEST-')) {
+                setRole('guest')
+                setAuthenticated(true)
+                setMessage('')
+                return
+              }
+
+              setMessage('Invalid access code.')
+            }
+
+            function requestAccess() {
+              setRequestSent(true)
+              setMessage(
+                'Your access request has been sent to the Super Admin.'
+              )
+            }
+
+            function logout() {
+              setAuthenticated(false)
+              setRole(null)
+              setCode('')
+              setScreen('Home')
+              setMessage('')
+            }
+
+            function navigationItems() {
+              const items = [
+                'Home',
+                'Projects',
+                'Files',
+                'Build',
+                'AI Chat',
+                'Image Flow'
+              ]
+
+              if (role === 'superadmin') {
+                items.push('Google Drive')
+                items.push('Settings')
+              } else if (role === 'admin' || role === 'member') {
+                items.push('Google Drive')
+              }
+
+              return items
+            }
+
+            if (!authenticated) {
+              return (
+                <div className="access-page">
+                  <div className="access-glow"></div>
+
+                  <div className="access-card">
+                    <div className="brand-mark">OU</div>
+
+                    <h1>OU The Builder</h1>
+                    <p className="access-subtitle">
+                      Web-Based Application
+                    </p>
+
+                    <div className="access-divider"></div>
+
+                    <h2>Access Required</h2>
+
+                    <p className="access-description">
+                      Enter your password or access code to continue.
+                    </p>
+
+                    <input
+                      className="access-input"
+                      type="password"
+                      placeholder="Password or Access Code"
+                      value={code}
+                      onChange={(event) => {
+                        setCode(event.target.value)
+                        setMessage('')
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter') {
+                          login()
+                        }
+                      }}
+                      autoFocus
+                    />
+
+                    <button className="primary-button" onClick={login}>
+                      ENTER
+                    </button>
+
+                    <button
+                      className="request-button"
+                      onClick={requestAccess}
+                    >
+                      Request an Access Code
+                    </button>
+
+                    {requestSent && (
+                      <div className="request-box">
+                        <strong>Request sent</strong>
+                        <span>
+                          The Super Admin will receive your request.
+                        </span>
+                      </div>
+                    )}
+
+                    {message && (
+                      <div className="message-box">
+                        {message}
+                      </div>
+                    )}
+
+                    <div className="access-footer">
+                      Foundation Stage • OU The Builder
+                    </div>
+                  </div>
+                </div>
+              )
+            }
+
+            return (
+              <div className="app-shell">
+                <aside className="sidebar">
+                  <div className="brand">
+                    <div className="brand-mark small">OU</div>
+                    <div>
+                      <strong>OU The Builder</strong>
+                      <span>Web-Based Application</span>
+                    </div>
+                  </div>
+
+                  <div className="role-badge">
+                    <span>ROLE</span>
+                    <strong>{ROLE_RULES[role].name}</strong>
+                  </div>
+
+                  <nav>
+                    {navigationItems().map((item) => (
+                      <button
+                        key={item}
+                        className={
+                          screen === item
+                            ? 'nav-button active'
+                            : 'nav-button'
+                        }
+                        onClick={() => setScreen(item)}
+                      >
+                        {item}
+                      </button>
+                    ))}
+                  </nav>
+
+                  <button className="logout-button" onClick={logout}>
+                    Sign Out
+                  </button>
+                </aside>
+
+                <main className="main">
+                  <header className="topbar">
+                    <button
+                      className="top-brand"
+                      onClick={() => setScreen('Home')}
+                    >
+                      OU The Builder
+                    </button>
+
+                    <div className="top-status">
+                      <span className="online-dot"></span>
+                      Online
+                      <span className="top-role">
+                        {ROLE_RULES[role].name}
+                      </span>
+                    </div>
+                  </header>
+
+                  <section className="content">
+                    {screen === 'Home' && (
+                      <HomeScreen
+                        role={role}
+                        setScreen={setScreen}
+                      />
+                    )}
+
+                    {screen === 'Projects' && (
+                      <ProjectsScreen role={role} />
+                    )}
+
+                    {screen === 'Files' && (
+                      <FilesScreen role={role} />
+                    )}
+
+                    {screen === 'Build' && (
+                      <BuildScreen role={role} limits={limits} />
+                    )}
+
+                    {screen === 'AI Chat' && (
+                      <AIChatScreen role={role} />
+                    )}
+
+                    {screen === 'Image Flow' && (
+                      <ImageFlowScreen />
+                    )}
+
+                    {screen === 'Google Drive' && (
+                      <DriveScreen role={role} />
+                    )}
+
+                    {screen === 'Settings' &&
+                      role === 'superadmin' && (
+                        <SettingsScreen
+                          limits={limits}
+                          setLimits={setLimits}
+                          requests={requests}
+                          setRequests={setRequests}
+                          replyCode={replyCode}
+                          setReplyCode={setReplyCode}
+                        />
+                      )}
+                  </section>
+
+                  <footer>
+                    OU The Builder • v0.3.0 • Access Control Foundation
+                  </footer>
+                </main>
+              </div>
+            )
+          }
+
+          function HomeScreen({ role, setScreen }) {
+            return (
+              <>
+                <div className="hero">
+                  <div>
+                    <span className="eyebrow">
+                      {ROLE_RULES[role].name} ACCESS
+                    </span>
+
+                    <h1>Welcome to OU The Builder</h1>
+
+                    <p>
+                      Build, manage, visualize and compile your
+                      applications from one place.
+                    </p>
+                  </div>
+
+                  <div className="hero-role">
+                    <span>Current Role</span>
+                    <strong>{ROLE_RULES[role].name}</strong>
+                    <small>
+                      {ROLE_RULES[role].description}
+                    </small>
+                  </div>
+                </div>
+
+                <div className="card-grid">
+                  <FeatureCard
+                    title="Projects"
+                    text="Create, import and manage your projects."
+                    button="Open Projects"
+                    onClick={() => setScreen('Projects')}
+                  />
+
+                  <FeatureCard
+                    title="Files"
+                    text="Manage project resources and uploaded files."
+                    button="Open Files"
+                    onClick={() => setScreen('Files')}
+                  />
+
+                  <FeatureCard
+                    title="Build"
+                    text="Prepare and build your application."
+                    button="Open Build"
+                    onClick={() => setScreen('Build')}
+                  />
+
+                  <FeatureCard
+                    title="AI Chat"
+                    text="Use AI as the central builder interface."
+                    button="Open AI Chat"
+                    onClick={() => setScreen('AI Chat')}
+                  />
+
+                  <FeatureCard
+                    title="Image Flow"
+                    text="Visualize screens and application navigation."
+                    button="Open Image Flow"
+                    onClick={() => setScreen('Image Flow')}
+                  />
+
+                  <FeatureCard
+                    title="Google Drive"
+                    text="Cloud resource integration foundation."
+                    button="Open Drive"
+                    onClick={() => setScreen('Google Drive')}
+                  />
+                </div>
+
+                <div className="section-grid">
+                  <div className="panel">
+                    <h3>System Status</h3>
+                    <StatusRow label="WBA" value="Online" />
+                    <StatusRow label="Access Control" value="Foundation" />
+                    <StatusRow label="Build System" value="Foundation" />
+                    <StatusRow label="AI Service" value="Not Connected" />
+                  </div>
+
+                  <div className="panel">
+                    <h3>Current Access</h3>
+                    <div className="access-stat">
+                      <span>Role</span>
+                      <strong>
+                        {ROLE_RULES[role].name}
+                      </strong>
+                    </div>
+
+                    <div className="access-stat">
+                      <span>Build allowance</span>
+                      <strong>
+                        {ROLE_RULES[role].buildLimit}
+                      </strong>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )
+          }
+
+          function FeatureCard({ title, text, button, onClick }) {
+            return (
+              <div className="feature-card">
+                <div className="feature-icon">
+                  {title.slice(0, 1)}
+                </div>
+
+                <h3>{title}</h3>
+                <p>{text}</p>
+
+                <button
+                  className="secondary-button"
+                  onClick={onClick}
+                >
+                  {button}
+                </button>
+              </div>
+            )
+          }
+
+          function StatusRow({ label, value }) {
+            return (
+              <div className="status-row">
+                <span>{label}</span>
+                <strong>{value}</strong>
+              </div>
+            )
+          }
+
+          function ProjectsScreen({ role }) {
+            const [projects, setProjects] = React.useState([])
+            const [name, setName] = React.useState('')
+
+            function createProject() {
+              const trimmed = name.trim()
+
+              if (!trimmed) return
+
+              setProjects((current) => [
+                ...current,
+                {
+                  id: Date.now(),
+                  name: trimmed
+                }
+              ])
+
+              setName('')
+            }
+
+            return (
+              <ScreenLayout
+                title="Projects"
+                subtitle="Create and manage your application projects."
+              >
+                <div className="toolbar">
+                  <input
+                    value={name}
+                    onChange={(event) =>
+                      setName(event.target.value)
+                    }
+                    placeholder="New project name"
+                  />
+
+                  <button
+                    className="primary-button compact"
+                    onClick={createProject}
+                  >
+                    Create Project
+                  </button>
+                </div>
+
+                <div className="panel">
+                  <h3>Your Projects</h3>
+
+                  {projects.length === 0 ? (
+                    <div className="empty">
+                      No projects created yet.
+                    </div>
+                  ) : (
+                    <div className="project-list">
+                      {projects.map((project) => (
+                        <div
+                          className="project-item"
+                          key={project.id}
+                        >
+                          <div>
+                            <strong>{project.name}</strong>
+                            <span>
+                              Editable by {ROLE_RULES[role].name}
+                            </span>
+                          </div>
+
+                          <button className="secondary-button">
+                            Open
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </ScreenLayout>
+            )
+          }
+
+          function FilesScreen() {
+            const [files, setFiles] = React.useState([])
+
+            function chooseFiles(event) {
+              setFiles(Array.from(event.target.files || []))
+            }
+
+            return (
+              <ScreenLayout
+                title="Files"
+                subtitle="Project files and resources."
+              >
+                <div className="panel">
+                  <h3>Upload Project Files</h3>
+
+                  <input
+                    className="file-input"
+                    type="file"
+                    multiple
+                    onChange={chooseFiles}
+                  />
+
+                  <p className="muted">
+                    Browser file selection is currently a foundation
+                    feature. Permanent server storage will be connected
+                    in the backend stage.
+                  </p>
+
+                  <div className="file-list">
+                    {files.map((file) => (
+                      <div
+                        className="file-item"
+                        key={file.name}
+                      >
+                        {file.name}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </ScreenLayout>
+            )
+          }
+
+          function BuildScreen({ role, limits }) {
+            const [target, setTarget] = React.useState('Android APK')
+            const [building, setBuilding] = React.useState(false)
+            const [complete, setComplete] = React.useState(false)
+
+            function build() {
+              setBuilding(true)
+              setComplete(false)
+
+              setTimeout(() => {
+                setBuilding(false)
+                setComplete(true)
+              }, 1800)
+            }
+
+            return (
+              <ScreenLayout
+                title="Build"
+                subtitle="Prepare and build your application."
+              >
+                <div className="build-grid">
+                  <div className="panel">
+                    <h3>Build Configuration</h3>
+
+                    <label>Target</label>
+
+                    <select
+                      value={target}
+                      onChange={(event) =>
+                        setTarget(event.target.value)
+                      }
+                    >
+                      <option>Android APK</option>
+                      <option>Web App</option>
+                      <option>Hybrid App</option>
+                    </select>
+
+                    <div className="build-info">
+                      <span>Role</span>
+                      <strong>
+                        {ROLE_RULES[role].name}
+                      </strong>
+                    </div>
+
+                    <div className="build-info">
+                      <span>Build allowance</span>
+                      <strong>
+                        {ROLE_RULES[role].buildLimit}
+                      </strong>
+                    </div>
+
+                    <button
+                      className="primary-button"
+                      onClick={build}
+                      disabled={building}
+                    >
+                      {building
+                        ? 'BUILDING...'
+                        : 'RUN BUILD'}
+                    </button>
+                  </div>
+
+                  <div className="panel console">
+                    <h3>Build Console</h3>
+
+                    <div>BUILD CONSOLE</div>
+                    <div>✓ Project detected</div>
+                    <div>✓ Configuration checked</div>
+                    <div>✓ Resources checked</div>
+
+                    {building && (
+                      <>
+                        <div>→ Preparing build environment</div>
+                        <div>→ Running build process</div>
+                      </>
+                    )}
+
+                    {complete && (
+                      <>
+                        <div>✓ Build process completed</div>
+                        <div className="success">
+                          BUILD SUCCESSFUL
+                        </div>
+                      </>
+                    )}
+
+                    {!building && !complete && (
+                      <div className="muted">
+                        Waiting for build.
+                      </div>
+                    )}
+
+                    <small>
+                      Remote APK compilation will be connected to
+                      the backend/build service in the next stage.
+                    </small>
+                  </div>
+                </div>
+              </ScreenLayout>
+            )
+          }
+
+          function AIChatScreen() {
+            const [input, setInput] = React.useState('')
+            const [messages, setMessages] = React.useState([
+              {
+                from: 'AI',
+                text:
+                  'AI Chat foundation is ready. The real AI provider will be connected through the backend.'
+              }
+            ])
+
+            function send() {
+              const text = input.trim()
+
+              if (!text) return
+
+              setMessages((current) => [
+                ...current,
+                {
+                  from: 'You',
+                  text
+                },
+                {
+                  from: 'AI',
+                  text:
+                    'Your command was received. Backend AI integration is the next connection stage.'
+                }
+              ])
+
+              setInput('')
+            }
+
+            return (
+              <ScreenLayout
+                title="AI Chat"
+                subtitle="Central control interface for OU The Builder."
+              >
+                <div className="chat-panel">
+                  <div className="chat-messages">
+                    {messages.map((message, index) => (
+                      <div
+                        className={
+                          message.from === 'You'
+                            ? 'chat-message user'
+                            : 'chat-message ai'
+                        }
+                        key={index}
+                      >
+                        <strong>{message.from}</strong>
+                        <p>{message.text}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="chat-input-row">
+                    <input
+                      value={input}
+                      onChange={(event) =>
+                        setInput(event.target.value)
+                      }
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter') send()
+                      }}
+                      placeholder="Tell OU The Builder what to do..."
+                    />
+
+                    <button
+                      className="primary-button compact"
+                      onClick={send}
+                    >
+                      Send
+                    </button>
+                  </div>
+                </div>
+              </ScreenLayout>
+            )
+          }
+
+          function ImageFlowScreen() {
+            return (
+              <ScreenLayout
+                title="Image Flow"
+                subtitle="Visual application screen and navigation flow."
+              >
+                <div className="flow-canvas">
+                  <FlowNode title="Home" />
+                  <div className="flow-arrow">↓</div>
+                  <FlowNode title="Projects" />
+                  <div className="flow-arrow">↓</div>
+                  <FlowNode title="Build" />
+                  <div className="flow-arrow">↓</div>
+                  <FlowNode title="APK Result" />
+                </div>
+              </ScreenLayout>
+            )
+          }
+
+          function FlowNode({ title }) {
+            return (
+              <div className="flow-node">
+                <span>SCREEN</span>
+                <strong>{title}</strong>
+              </div>
+            )
+          }
+
+          function DriveScreen() {
+            return (
+              <ScreenLayout
+                title="Google Drive"
+                subtitle="Cloud resource integration."
+              >
+                <div className="panel">
+                  <div className="drive-icon">G</div>
+                  <h3>Google Drive Integration</h3>
+
+                  <p className="muted">
+                    Google Drive connection will use secure user
+                    authorization. A personal developer Drive will
+                    not be used as permanent storage for every user.
+                  </p>
+
+                  <button
+                    className="secondary-button"
+                    disabled
+                  >
+                    Connect Google Drive
+                  </button>
+                </div>
+              </ScreenLayout>
+            )
+          }
+
+          function SettingsScreen({
+            limits,
+            setLimits,
+            requests,
+            setRequests,
+            replyCode,
+            setReplyCode
+          }) {
+            function updateLimit(name, value) {
+              const number = Number(value)
+
+              if (Number.isNaN(number)) return
+
+              setLimits((current) => ({
+                ...current,
+                [name]: number
+              }))
+            }
+
+            function approveRequest(id) {
+              setRequests((current) =>
+                current.map((request) =>
+                  request.id === id
+                    ? {
+                        ...request,
+                        status: 'Replied'
+                      }
+                    : request
+                )
+              )
+            }
+
+            return (
+              <ScreenLayout
+                title="Super Admin Settings"
+                subtitle="Complete system control."
+              >
+                <div className="warning-panel">
+                  <strong>Super Admin</strong>
+                  <span>
+                    This interface represents the Super Admin control
+                    layer. Server-side authentication will enforce
+                    these permissions in the production backend.
+                  </span>
+                </div>
+
+                <div className="settings-grid">
+                  <div className="panel">
+                    <h3>Role Limits</h3>
+
+                    <SettingNumber
+                      label="Maximum Admin codes"
+                      value={limits.admins}
+                      onChange={(value) =>
+                        updateLimit('admins', value)
+                      }
+                    />
+
+                    <SettingNumber
+                      label="Guest codes per Admin"
+                      value={limits.guestPerAdmin}
+                      onChange={(value) =>
+                        updateLimit('guestPerAdmin', value)
+                      }
+                    />
+
+                    <SettingNumber
+                      label="Guest codes per Member"
+                      value={limits.guestPerMember}
+                      onChange={(value) =>
+                        updateLimit('guestPerMember', value)
+                      }
+                    />
+
+                    <SettingNumber
+                      label="Guest successful builds"
+                      value={limits.guestBuilds}
+                      onChange={(value) =>
+                        updateLimit('guestBuilds', value)
+                      }
+                    />
+                  </div>
+
+                  <div className="panel">
+                    <h3>Super Admin Credential</h3>
+
+                    <p>
+                      The default Super Admin credential remains a
+                      permanent system rule.
+                    </p>
+
+                    <div className="credential-display">
+                      Default Super Admin
+                      <strong>Protected system credential</strong>
+                    </div>
+
+                    <button
+                      className="secondary-button"
+                      disabled
+                    >
+                      Change Super Admin Password / Code
+                    </button>
+
+                    <small className="muted">
+                      Persistent credential management will be handled
+                      by the secure backend.
+                    </small>
+                  </div>
+                </div>
+
+                <div className="panel">
+                  <h3>Access Requests</h3>
+
+                  {requests.map((request) => (
+                    <div
+                      className="request-item"
+                      key={request.id}
+                    >
+                      <div>
+                        <strong>
+                          {request.requester}
+                        </strong>
+
+                        <span>
+                          Requested: {request.roleRequested}
+                        </span>
+
+                        <small>
+                          {request.message}
+                        </small>
+                      </div>
+
+                      <div className="request-actions">
+                        <span className="request-status">
+                          {request.status}
+                        </span>
+
+                        <input
+                          value={replyCode}
+                          onChange={(event) =>
+                            setReplyCode(event.target.value)
+                          }
+                          placeholder="Reply code"
+                        />
+
+                        <button
+                          className="secondary-button"
+                          onClick={() =>
+                            approveRequest(request.id)
+                          }
+                        >
+                          Reply
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="panel">
+                  <h3>Code Management</h3>
+
+                  <div className="management-row">
+                    <span>Admin codes</span>
+                    <strong>
+                      Maximum {limits.admins}
+                    </strong>
+
+                    <button
+                      className="secondary-button"
+                      disabled
+                    >
+                      Generate Admin Code
+                    </button>
+                  </div>
+
+                  <div className="management-row">
+                    <span>Member codes</span>
+                    <strong>Super Admin controlled</strong>
+
+                    <button
+                      className="secondary-button"
+                      disabled
+                    >
+                      Generate Member Code
+                    </button>
+                  </div>
+
+                  <div className="management-row">
+                    <span>Guest codes</span>
+                    <strong>
+                      Admin: {limits.guestPerAdmin} / Member:{' '}
+                      {limits.guestPerMember}
+                    </strong>
+
+                    <button
+                      className="secondary-button"
+                      disabled
+                    >
+                      Generate Guest Code
+                    </button>
+                  </div>
+                </div>
+              </ScreenLayout>
+            )
+          }
+
+          function SettingNumber({ label, value, onChange }) {
+            return (
+              <label className="setting-number">
+                <span>{label}</span>
+
+                <input
+                  type="number"
+                  min
