@@ -24,6 +24,7 @@ const INITIAL_PROJECTS = [
 function App() {
   const [activePage, setActivePage] = useState('home')
   const [mobileMenu, setMobileMenu] = useState(false)
+
   const [projects, setProjects] = useState(() => {
     try {
       const saved = localStorage.getItem('ou_builder_projects')
@@ -35,13 +36,15 @@ function App() {
 
   const [currentProject, setCurrentProject] = useState(() => {
     try {
-      return localStorage.getItem('ou_builder_current') || 'OU The Builder Foundation'
+      return localStorage.getItem('ou_builder_current') ||
+        'OU The Builder Foundation'
     } catch {
       return 'OU The Builder Foundation'
     }
   })
 
   const [files, setFiles] = useState([])
+
   const [chatMessages, setChatMessages] = useState([
     {
       role: 'assistant',
@@ -51,6 +54,7 @@ function App() {
 
   const [chatInput, setChatInput] = useState('')
   const [buildStatus, setBuildStatus] = useState('Ready')
+
   const [buildLog, setBuildLog] = useState([
     'BUILD CONSOLE',
     'Ready for a build request.'
@@ -73,8 +77,8 @@ function App() {
   }, [currentProject])
 
   const activeLabel = useMemo(() => {
-    const item = NAV_ITEMS.find(x => x.id === activePage)
-    return item?.label || 'Home'
+    return NAV_ITEMS.find(item => item.id === activePage)?.label ||
+      'Home'
   }, [activePage])
 
   function navigate(page) {
@@ -105,13 +109,10 @@ function App() {
 
   function removeProject(id) {
     const project = projects.find(item => item.id === id)
+
     if (!project) return
 
-    if (
-      !window.confirm(
-        `Delete "${project.name}" from this browser?`
-      )
-    ) {
+    if (!window.confirm(`Delete "${project.name}" from this browser?`)) {
       return
     }
 
@@ -177,6 +178,7 @@ function App() {
               'BUILD FOUNDATION READY',
               'Remote APK compilation will be connected in the next build-system stage.'
             ])
+
             setBuildStatus('Ready')
           }, 350)
         }
@@ -205,7 +207,10 @@ function App() {
 
       const lower = text.toLowerCase()
 
-      if (lower.includes('build') || lower.includes('compile')) {
+      if (
+        lower.includes('build') ||
+        lower.includes('compile')
+      ) {
         response =
           'I can prepare a build request. The real remote APK compiler will be connected during the Build System stage.'
       } else if (
@@ -234,6 +239,7 @@ function App() {
 
   function renderPage() {
     switch (activePage) {
+
       case 'projects':
         return (
           <ProjectsPage
@@ -309,8 +315,12 @@ function App() {
       >
         <div className="brand">
           <div className="brand-mark">OU</div>
+
           <div>
-            <div className="brand-title">OU The Builder</div>
+            <div className="brand-title">
+              OU The Builder
+            </div>
+
             <div className="brand-subtitle">
               Web-Based Application
             </div>
@@ -318,12 +328,15 @@ function App() {
         </div>
 
         <div className="online-badge">
-          <span />
+          <span className="dot green" />
           Online
         </div>
 
         <nav className="navigation">
-          <div className="nav-title">WORKSPACE</div>
+
+          <div className="nav-title">
+            WORKSPACE
+          </div>
 
           {NAV_ITEMS.map(item => (
             <button
@@ -333,21 +346,31 @@ function App() {
               }`}
               onClick={() => navigate(item.id)}
             >
-              <span className="nav-icon">{item.icon}</span>
+              <span className="nav-icon">
+                {item.icon}
+              </span>
+
               <span>{item.label}</span>
             </button>
           ))}
+
         </nav>
 
         <div className="sidebar-bottom">
-          <div className="version">v0.1.0</div>
-          <div className="stage">Foundation Stage</div>
+          <div className="version">
+            v0.1.0
+          </div>
+
+          <div className="stage">
+            Foundation Stage
+          </div>
         </div>
       </aside>
 
       <main className="main-content">
 
         <header className="topbar">
+
           <button
             className="menu-button"
             onClick={() => setMobileMenu(true)}
@@ -363,6 +386,7 @@ function App() {
             <span>Current Project</span>
             <strong>{currentProject}</strong>
           </div>
+
         </header>
 
         <section className="page-container">
@@ -374,6 +398,7 @@ function App() {
           <span>v0.1.0</span>
           <span>Foundation Stage</span>
         </footer>
+
       </main>
 
       <input
@@ -383,6 +408,7 @@ function App() {
         hidden
         onChange={handleFiles}
       />
+
     </div>
   )
 }
@@ -398,9 +424,16 @@ function HomePage({
   return (
     <>
       <section className="hero">
+
         <div>
-          <div className="eyebrow">WEB-BASED APPLICATION</div>
-          <h1>Welcome to <span>OU The Builder</span></h1>
+          <div className="eyebrow">
+            WEB-BASED APPLICATION
+          </div>
+
+          <h1>
+            Welcome to <span>OU The Builder</span>
+          </h1>
+
           <p>
             Build, manage, visualize and compile your projects
             from one workspace.
@@ -410,9 +443,11 @@ function HomePage({
         <div className="hero-orb">
           <div>OU</div>
         </div>
+
       </section>
 
       <section className="status-row">
+
         <div className="status-chip">
           <span className="dot green" />
           WBA Online
@@ -427,6 +462,7 @@ function HomePage({
           <span className="dot purple" />
           Node.js 24
         </div>
+
       </section>
 
       <div className="dashboard-grid">
@@ -470,6 +506,7 @@ function HomePage({
       <div className="two-column">
 
         <section className="panel chat-preview">
+
           <PanelHeader
             title="AI Chat"
             subtitle="Builder control interface"
@@ -478,17 +515,23 @@ function HomePage({
           />
 
           <div className="chat-preview-body">
-            <div className="assistant-avatar">✦</div>
+
+            <div className="assistant-avatar">
+              ✦
+            </div>
 
             <div>
               <strong>AI Builder</strong>
+
               <p>
                 What would you like to build today?
               </p>
             </div>
+
           </div>
 
           <div className="quick-chat">
+
             <button onClick={() => navigate('chat')}>
               Create a project
             </button>
@@ -500,35 +543,44 @@ function HomePage({
             <button onClick={() => navigate('chat')}>
               Show application flow
             </button>
+
           </div>
+
         </section>
 
         <section className="panel">
+
           <PanelHeader
             title="System Status"
             subtitle="Workspace services"
           />
 
           <div className="status-list">
+
             <StatusRow
               name="Frontend"
               value="Online"
               good
             />
+
             <StatusRow
               name="GitHub Actions"
               value="Ready"
               good
             />
+
             <StatusRow
               name="Backend API"
               value="Foundation"
             />
+
             <StatusRow
               name="Google Drive"
               value="Not Connected"
             />
+
           </div>
+
         </section>
 
       </div>
@@ -536,18 +588,23 @@ function HomePage({
       <div className="three-column">
 
         <section className="panel">
+
           <PanelHeader
             title="Current Project"
             subtitle="Active workspace"
           />
 
           <div className="current-project">
-            <div className="project-icon">OU</div>
+
+            <div className="project-icon">
+              OU
+            </div>
 
             <div>
               <strong>{currentProject}</strong>
               <span>Active project</span>
             </div>
+
           </div>
 
           <button
@@ -556,15 +613,18 @@ function HomePage({
           >
             Open Project
           </button>
+
         </section>
 
         <section className="panel">
+
           <PanelHeader
             title="Quick Actions"
             subtitle="Common operations"
           />
 
           <div className="quick-actions">
+
             <button onClick={createProject}>
               ＋ New Project
             </button>
@@ -576,10 +636,13 @@ function HomePage({
             <button onClick={startBuild}>
               ▶ Prepare Build
             </button>
+
           </div>
+
         </section>
 
         <section className="panel">
+
           <PanelHeader
             title="Workspace"
             subtitle="Current activity"
@@ -594,6 +657,7 @@ function HomePage({
             <strong>{projects.length}</strong>
             <span>Projects</span>
           </div>
+
         </section>
 
       </div>
@@ -616,14 +680,25 @@ function ProjectsPage({
       action="＋ New Project"
       onAction={createProject}
     >
+
       <div className="project-grid">
+
         {projects.map(project => (
-          <article className="project-card" key={project.id}>
+          <article
+            className="project-card"
+            key={project.id}
+          >
+
             <div className="project-card-top">
-              <div className="project-icon">OU</div>
+
+              <div className="project-icon">
+                OU
+              </div>
+
               <span className="project-status">
                 {project.status}
               </span>
+
             </div>
 
             <h3>{project.name}</h3>
@@ -633,6 +708,7 @@ function ProjectsPage({
             </p>
 
             <div className="project-card-actions">
+
               <button
                 className="primary-button"
                 onClick={() => chooseProject(project)}
@@ -645,15 +721,21 @@ function ProjectsPage({
               {project.id !== 'foundation' && (
                 <button
                   className="danger-button"
-                  onClick={() => removeProject(project.id)}
+                  onClick={() =>
+                    removeProject(project.id)
+                  }
                 >
                   Delete
                 </button>
               )}
+
             </div>
+
           </article>
         ))}
+
       </div>
+
     </PageHeader>
   )
 }
@@ -671,7 +753,9 @@ function FilesPage({
       action="＋ Add Files"
       onAction={openFilePicker}
     >
+
       <section className="panel">
+
         <PanelHeader
           title="Project Resources"
           subtitle={`${files.length} file${
@@ -691,21 +775,35 @@ function FilesPage({
           />
         ) : (
           <div className="file-list">
+
             {files.map(file => (
-              <div className="file-row" key={file.id}>
-                <div className="file-icon">FILE</div>
+              <div
+                className="file-row"
+                key={file.id}
+              >
+
+                <div className="file-icon">
+                  FILE
+                </div>
 
                 <div className="file-info">
+
                   <strong>{file.name}</strong>
+
                   <span>
                     {file.type} · {formatBytes(file.size)}
                   </span>
+
                 </div>
+
               </div>
             ))}
+
           </div>
         )}
+
       </section>
+
     </PageHeader>
   )
 }
@@ -723,15 +821,18 @@ function BuildPage({
       action="▶ Run Build"
       onAction={startBuild}
     >
+
       <div className="build-layout">
 
         <section className="panel">
+
           <PanelHeader
             title="Build Configuration"
             subtitle="Foundation configuration"
           />
 
           <div className="config-grid">
+
             <ConfigItem
               label="Target"
               value="Android APK"
@@ -751,6 +852,7 @@ function BuildPage({
               label="Status"
               value={status}
             />
+
           </div>
 
           <button
@@ -759,15 +861,18 @@ function BuildPage({
           >
             ▶ Run Build
           </button>
+
         </section>
 
         <section className="panel build-console">
+
           <PanelHeader
             title="Build Console"
             subtitle="Process output"
           />
 
           <div className="console">
+
             {log.map((line, index) => (
               <div
                 key={`${line}-${index}`}
@@ -781,10 +886,13 @@ function BuildPage({
                 {line}
               </div>
             ))}
+
           </div>
+
         </section>
 
       </div>
+
     </PageHeader>
   )
 }
@@ -801,9 +909,11 @@ function ChatPage({
       title="AI Chat"
       description="The central conversational control interface for OU The Builder."
     >
+
       <section className="panel full-chat">
 
         <div className="chat-messages">
+
           {messages.map((message, index) => (
             <div
               key={index}
@@ -813,11 +923,15 @@ function ChatPage({
                   : 'assistant-message'
               }`}
             >
+
               <div className="message-avatar">
-                {message.role === 'user' ? 'U' : '✦'}
+                {message.role === 'user'
+                  ? 'U'
+                  : '✦'}
               </div>
 
               <div>
+
                 <strong>
                   {message.role === 'user'
                     ? 'You'
@@ -825,17 +939,25 @@ function ChatPage({
                 </strong>
 
                 <p>{message.text}</p>
+
               </div>
+
             </div>
           ))}
+
         </div>
 
         <div className="chat-input-row">
+
           <input
             value={input}
-            onChange={event => setInput(event.target.value)}
+            onChange={event =>
+              setInput(event.target.value)
+            }
             onKeyDown={event => {
-              if (event.key === 'Enter') sendChat()
+              if (event.key === 'Enter') {
+                sendChat()
+              }
             }}
             placeholder="Tell OU The Builder what you want to do..."
           />
@@ -846,9 +968,11 @@ function ChatPage({
           >
             Send
           </button>
+
         </div>
 
         <div className="chat-suggestions">
+
           <button
             onClick={() =>
               setInput('Create a new project')
@@ -872,9 +996,11 @@ function ChatPage({
           >
             Show flow
           </button>
+
         </div>
 
       </section>
+
     </PageHeader>
   )
 }
@@ -886,6 +1012,7 @@ function FlowPage() {
       title="Image Flow"
       description="Visualize application screens and navigation connections."
     >
+
       <section className="panel flow-panel">
 
         <div className="flow-canvas">
@@ -928,6 +1055,7 @@ function FlowPage() {
         </div>
 
       </section>
+
     </PageHeader>
   )
 }
@@ -939,8 +1067,12 @@ function DrivePage() {
       title="Google Drive"
       description="Connect cloud storage for project resources and archives."
     >
+
       <section className="panel centered-panel">
-        <div className="large-icon">☁</div>
+
+        <div className="large-icon">
+          ☁
+        </div>
 
         <h2>Google Drive</h2>
 
@@ -960,7 +1092,9 @@ function DrivePage() {
         <span className="coming-soon">
           Storage integration — upcoming stage
         </span>
+
       </section>
+
     </PageHeader>
   )
 }
@@ -972,6 +1106,7 @@ function SettingsPage() {
       title="Settings"
       description="Configure OU The Builder services and future integrations."
     >
+
       <div className="settings-list">
 
         <SettingItem
@@ -999,6 +1134,7 @@ function SettingsPage() {
         />
 
       </div>
+
     </PageHeader>
   )
 }
@@ -1015,14 +1151,20 @@ function FeatureCard({
       className={`feature-card ${accent}`}
       onClick={onClick}
     >
-      <div className="feature-icon">{icon}</div>
+
+      <div className="feature-icon">
+        {icon}
+      </div>
 
       <div>
         <h3>{title}</h3>
         <p>{text}</p>
       </div>
 
-      <span className="feature-arrow">→</span>
+      <span className="feature-arrow">
+        →
+      </span>
+
     </button>
   )
 }
@@ -1035,9 +1177,13 @@ function PanelHeader({
 }) {
   return (
     <div className="panel-header">
+
       <div>
         <h2>{title}</h2>
-        {subtitle && <span>{subtitle}</span>}
+
+        {subtitle && (
+          <span>{subtitle}</span>
+        )}
       </div>
 
       {action && (
@@ -1048,6 +1194,7 @@ function PanelHeader({
           {action}
         </button>
       )}
+
     </div>
   )
 }
@@ -1059,12 +1206,17 @@ function StatusRow({
 }) {
   return (
     <div className="status-row-item">
+
       <span>{name}</span>
 
       <strong>
-        {good && <span className="dot green" />}
+        {good && (
+          <span className="dot green" />
+        )}
+
         {value}
       </strong>
+
     </div>
   )
 }
@@ -1080,10 +1232,17 @@ function PageHeader({
   return (
     <>
       <div className="page-heading">
+
         <div>
-          <div className="eyebrow">{eyebrow}</div>
+
+          <div className="eyebrow">
+            {eyebrow}
+          </div>
+
           <h1>{title}</h1>
+
           <p>{description}</p>
+
         </div>
 
         {action && (
@@ -1094,6 +1253,7 @@ function PageHeader({
             {action}
           </button>
         )}
+
       </div>
 
       {children}
@@ -1110,8 +1270,13 @@ function EmptyState({
 }) {
   return (
     <div className="empty-state">
-      <div className="empty-icon">{icon}</div>
+
+      <div className="empty-icon">
+        {icon}
+      </div>
+
       <h3>{title}</h3>
+
       <p>{text}</p>
 
       {action && (
@@ -1122,6 +1287,7 @@ function EmptyState({
           {action}
         </button>
       )}
+
     </div>
   )
 }
@@ -1132,8 +1298,11 @@ function ConfigItem({
 }) {
   return (
     <div className="config-item">
+
       <span>{label}</span>
+
       <strong>{value}</strong>
+
     </div>
   )
 }
@@ -1145,12 +1314,16 @@ function FlowNode({
 }) {
   return (
     <div className={`flow-node ${position}`}>
-      <div className="flow-node-icon">▣</div>
+
+      <div className="flow-node-icon">
+        ▣
+      </div>
 
       <div>
         <strong>{title}</strong>
         <span>{subtitle}</span>
       </div>
+
     </div>
   )
 }
@@ -1162,12 +1335,14 @@ function SettingItem({
 }) {
   return (
     <div className="setting-item">
+
       <div>
         <h3>{title}</h3>
         <p>{text}</p>
       </div>
 
       <span>{value}</span>
+
     </div>
   )
 }
@@ -1175,14 +1350,22 @@ function SettingItem({
 function formatBytes(bytes) {
   if (!bytes) return '0 B'
 
-  const units = ['B', 'KB', 'MB', 'GB']
+  const units = [
+    'B',
+    'KB',
+    'MB',
+    'GB'
+  ]
+
   const index = Math.floor(
     Math.log(bytes) / Math.log(1024)
   )
 
-  return `${(bytes / Math.pow(1024, index)).toFixed(
-    index === 0 ? 0 : 1
-  )} ${units[index]}`
+  return `${(
+    bytes / Math.pow(1024, index)
+  ).toFixed(index === 0 ? 0 : 1)} ${
+    units[index]
+  }`
 }
 
 export default App
