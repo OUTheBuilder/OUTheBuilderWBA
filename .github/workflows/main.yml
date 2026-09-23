@@ -1,0 +1,268 @@
+name: OU The Builder WBA - Access Control Foundation
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-24.04
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js 24
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Create OU The Builder WBA
+        shell: bash
+        run: |
+          set -e
+
+          rm -rf client
+          mkdir -p client/src
+          mkdir -p client/public
+
+          cat > client/package.json <<'EOF'
+          {
+            "name": "ou-the-builder-wba",
+            "private": true,
+            "version": "0.3.0",
+            "type": "module",
+            "scripts": {
+              "dev": "vite",
+              "build": "vite build",
+              "preview": "vite preview"
+            },
+            "dependencies": {
+              "@vitejs/plugin-react": "^5.0.4",
+              "vite": "^7.1.7",
+              "react": "^19.1.1",
+              "react-dom": "^19.1.1"
+            },
+            "devDependencies": {}
+          }
+          EOF
+
+          cat > client/vite.config.js <<'EOF'
+          import { defineConfig } from 'vite'
+          import react from '@vitejs/plugin-react'
+
+          export default defineConfig({
+            plugins: [react()],
+            base: '/OUTheBuilderWBA/'
+          })
+          EOF
+
+          cat > client/index.html <<'EOF'
+          <!doctype html>
+          <html lang="en">
+            <head>
+              <meta charset="UTF-8" />
+              <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+              <meta name="theme-color" content="#07111f" />
+              <title>OU The Builder</title>
+            </head>
+            <body>
+              <div id="root"></div>
+              <script type="module" src="/src/main.jsx"></script>
+            </body>
+          </html>
+          EOF
+
+          cat > client/public/.nojekyll <<'EOF'
+          EOF
+
+          cat > client/src/main.jsx <<'EOF'
+          import React, { useState } from 'react'
+          import { createRoot } from 'react-dom/client'
+          import './style.css'
+
+          const DEFAULT_SUPER_ADMIN = 'Admins123'
+
+          const defaultLimits = {
+            admins: 3,
+            guestPerAdmin: 10,
+            guestPerMember: 10,
+            guestBuilds: 1
+          }
+
+          const navItems = [
+            ['Home', '⌂'],
+            ['Projects', '▣'],
+            ['Files', '▤'],
+            ['Build', '⚙'],
+            ['AI Chat', '✦'],
+            ['Image Flow', '◇'],
+            ['Google Drive', '☁'],
+            ['Settings', '⚙']
+          ]
+
+          function AccessScreen({ onLogin }) {
+            const [code, setCode] = useState('')
+            const [message, setMessage] = useState('')
+            const [requestOpen, setRequestOpen] = useState(false)
+            const [requestName, setRequestName] = useState('')
+
+            function login() {
+              if (code === DEFAULT_SUPER_ADMIN) {
+                onLogin('Super Admin')
+                return
+              }
+
+              const saved = JSON.parse(
+                localStorage.getItem('ou_builder_demo_codes') || '{}'
+              )
+
+              if (saved[code]) {
+                onLogin(saved[code].role)
+                return
+              }
+
+              setMessage('Access code not recognized.')
+            }
+
+            function requestAccess() {
+              if (!requestName.trim()) {
+                setMessage('Enter your name before sending a request.')
+                return
+              }
+
+              localStorage.setItem(
+                'ou_builder_access_request',
+                JSON.stringify({
+                  name: requestName.trim(),
+                  status: 'pending',
+                  time: new Date().toISOString()
+                })
+              )
+
+              setRequestOpen(false)
+              setMessage(
+                'Request sent to the Super Admin. When approved, the code will appear here.'
+              )
+            }
+
+            return (
+              <div className="access-page">
+                <div className="access-card">
+                  <div className="logo-mark">OU</div>
+                  <div className="brand">OU The Builder</div>
+                  <div className="subbrand">Web-Based Application</div>
+
+                  <div className="access-title">
+                    Secure Access
+                  </div>
+
+                  <p className="muted">
+                    Enter your OU The Builder access code to continue.
+                  </p>
+
+                  <input
+                    className="access-input"
+                    type="password"
+                    value={code}
+                    onChange={e => setCode(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') login()
+                    }}
+                    placeholder="Password or access code"
+                  />
+
+                  <button className="primary-button full" onClick={login}>
+                    ENTER
+                  </button>
+
+                  <button
+                    className="link-button"
+                    onClick={() => setRequestOpen(true)}
+                  >
+                    Request an access code
+                  </button>
+
+                  {message && (
+                    <div className="notice">{message}</div>
+                  )}
+
+                  {requestOpen && (
+                    <div className="request-box">
+                      <strong>Request Access Code</strong>
+
+                      <input
+                        className="access-input small"
+                        value={requestName}
+                        onChange={e => setRequestName(e.target.value)}
+                        placeholder="Your name"
+                      />
+
+                      <button
+                        className="primary-button full"
+                        onClick={requestAccess}
+                      >
+                        SEND REQUEST
+                      </button>
+
+                      <button
+                        className="secondary-button full"
+                        onClick={() => setRequestOpen(false)}
+                      >
+                        CANCEL
+                      </button>
+                    </div>
+                  )}
+
+                  <div className="security-note">
+                    Access system foundation • v0.3.0
+                  </div>
+                </div>
+              </div>
+            )
+          }
+
+          function App() {
+            const [role, setRole] = useState(null)
+            const [screen, setScreen] = useState('Home')
+            const [limits, setLimits] = useState(defaultLimits)
+            const [codes, setCodes] = useState(() =>
+              JSON.parse(localStorage.getItem('ou_builder_demo_codes') || '{}')
+            )
+            const [projects, setProjects] = useState([])
+            const [guestBuilds, setGuestBuilds] = useState(0)
+            const [request, setRequest] = useState(() =>
+              JSON.parse(
+                localStorage.getItem('ou_builder_access_request') || 'null'
+              )
+            )
+
+            if (!role) {
+              return <AccessScreen onLogin={setRole} />
+            }
+
+            function logout() {
+              setRole(null)
+              setScreen('Home')
+            }
+
+            function createCode(targetRole) {
+              const prefix =
+                targetRole === 'Admin'
+                  ? 'ADM'
+                  : targetRole === '
