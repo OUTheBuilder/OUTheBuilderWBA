@@ -21,7 +21,6 @@ jobs:
         uses: actions/setup-node@v5
         with:
           node-version: '24'
-          cache: npm
 
       - name: Create WBA foundation
         shell: bash
@@ -140,4 +139,326 @@ jobs:
                   <h1>Build. Create. Compile.</h1>
 
                   <p>
-                    OU The Builder is being built as a centralized web
+                    OU The Builder is being built as a centralized web-based
+                    application where projects, files, AI tools, manual
+                    building, and APK compilation work together.
+                  </p>
+                </section>
+
+                <section className="grid">
+                  <article className="card">
+                    <span>01</span>
+                    <h2>Projects</h2>
+                    <p>Centralized project management.</p>
+                  </article>
+
+                  <article className="card">
+                    <span>02</span>
+                    <h2>Files</h2>
+                    <p>One project file system for Builder features.</p>
+                  </article>
+
+                  <article className="card">
+                    <span>03</span>
+                    <h2>AI Builder</h2>
+                    <p>AI operates on the same project source.</p>
+                  </article>
+
+                  <article className="card">
+                    <span>04</span>
+                    <h2>Build</h2>
+                    <p>Manual and automated APK compilation.</p>
+                  </article>
+                </section>
+
+                <section className="chat">
+                  <div className="chat-title">AI BUILDER</div>
+                  <p>
+                    Central AI control will be connected to the project and
+                    build systems in the next stages.
+                  </p>
+
+                  <div className="input">
+                    Ask OU The Builder...
+                    <button>→</button>
+                  </div>
+                </section>
+              </main>
+            )
+          }
+
+          export default App
+          JS
+          fi
+
+          if [ ! -f client/src/App.css ]; then
+            cat > client/src/App.css <<'CSS'
+          :root {
+            font-family: Inter, system-ui, sans-serif;
+            color: #f5f7ff;
+            background: #070a14;
+          }
+
+          * {
+            box-sizing: border-box;
+          }
+
+          body {
+            margin: 0;
+            min-width: 320px;
+            background:
+              radial-gradient(circle at 20% 0%, #15204a 0, transparent 35%),
+              radial-gradient(circle at 90% 20%, #241345 0, transparent 30%),
+              #070a14;
+          }
+
+          .app {
+            width: min(1180px, 100%);
+            margin: auto;
+            padding: 28px;
+          }
+
+          .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 20px;
+            padding: 8px 0 34px;
+          }
+
+          .brand {
+            font-weight: 900;
+            letter-spacing: 2px;
+            color: #7ddcff;
+          }
+
+          .subtitle {
+            margin-top: 5px;
+            color: #8993aa;
+            font-size: 13px;
+          }
+
+          .status {
+            border: 1px solid #263450;
+            border-radius: 999px;
+            padding: 9px 14px;
+            color: #aeb8ca;
+            font-size: 13px;
+          }
+
+          .dot {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #39e6a5;
+            margin-right: 8px;
+          }
+
+          .hero {
+            border: 1px solid #263354;
+            border-radius: 24px;
+            padding: 45px;
+            background: linear-gradient(135deg, #101a35, #0d1020);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, .25);
+          }
+
+          .badge {
+            color: #bd8cff;
+            font-size: 12px;
+            font-weight: 800;
+            letter-spacing: 2px;
+          }
+
+          h1 {
+            font-size: clamp(38px, 7vw, 72px);
+            line-height: .98;
+            margin: 16px 0;
+          }
+
+          .hero p {
+            max-width: 760px;
+            color: #aab4c8;
+            line-height: 1.7;
+            font-size: 17px;
+          }
+
+          .grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            margin-top: 18px;
+          }
+
+          .card,
+          .chat {
+            border: 1px solid #242f4a;
+            border-radius: 18px;
+            background: #0c1120;
+          }
+
+          .card {
+            padding: 22px;
+            min-height: 150px;
+          }
+
+          .card span {
+            color: #7ddcff;
+            font-size: 12px;
+            font-weight: 800;
+          }
+
+          h2 {
+            margin: 12px 0 8px;
+            font-size: 20px;
+          }
+
+          .card p,
+          .chat p {
+            color: #8994aa;
+            line-height: 1.5;
+          }
+
+          .chat {
+            margin-top: 18px;
+            padding: 24px;
+          }
+
+          .chat-title {
+            color: #bd8cff;
+            font-weight: 800;
+            letter-spacing: 1px;
+            font-size: 13px;
+          }
+
+          .input {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border: 1px solid #303b59;
+            border-radius: 14px;
+            padding: 14px 14px 14px 18px;
+            color: #66738c;
+          }
+
+          button {
+            border: 0;
+            border-radius: 10px;
+            padding: 9px 14px;
+            background: #7ddcff;
+            color: #07101d;
+            font-weight: 900;
+            cursor: pointer;
+          }
+
+          @media (max-width: 800px) {
+            .app {
+              padding: 18px;
+            }
+
+            .header {
+              align-items: flex-start;
+            }
+
+            .grid {
+              grid-template-columns: repeat(2, 1fr);
+            }
+
+            .hero {
+              padding: 30px 24px;
+            }
+          }
+
+          @media (max-width: 520px) {
+            .header {
+              flex-direction: column;
+            }
+
+            .status {
+              align-self: flex-start;
+            }
+
+            .grid {
+              grid-template-columns: 1fr;
+            }
+
+            .hero {
+              border-radius: 20px;
+            }
+          }
+          CSS
+          fi
+
+          if [ ! -f server/package.json ]; then
+            cat > server/package.json <<'JSON'
+          {
+            "name": "ou-the-builder-wba-server",
+            "private": true,
+            "version": "0.1.0",
+            "type": "module",
+            "scripts": {
+              "start": "node index.js"
+            },
+            "dependencies": {
+              "cors": "^2.8.5",
+              "dotenv": "^17.2.2",
+              "express": "^5.1.0"
+            }
+          }
+          JSON
+          fi
+
+          if [ ! -f server/index.js ]; then
+            cat > server/index.js <<'JS'
+          import express from 'express'
+          import cors from 'cors'
+          import 'dotenv/config'
+
+          const app = express()
+          const port = process.env.PORT || 3000
+
+          app.use(cors())
+          app.use(express.json())
+
+          app.get('/api/health', (_req, res) => {
+            res.json({
+              status: 'ok',
+              service: 'OU The Builder WBA API'
+            })
+          })
+
+          app.get('/api/projects', (_req, res) => {
+            res.json({
+              projects: []
+            })
+          })
+
+          app.listen(port, () => {
+            console.log(`OU The Builder API listening on port ${port}`)
+          })
+          JS
+          fi
+
+          if [ -f ARCHITECTURE.md ]; then
+            cp ARCHITECTURE.md docs/ARCHITECTURE.md
+          fi
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build WBA frontend
+        run: npm run build
+
+      - name: Verify foundation
+        run: |
+          set -e
+          test -d client/dist
+          test -f client/dist/index.html
+          test -f server/index.js
+          echo "OU The Builder WBA foundation verified successfully."
+
+      - name: Upload WBA build
+        uses: actions/upload-artifact@v4
+        with:
+          name: ou-the-builder-wba
+          path: client/dist
