@@ -1,4 +1,4 @@
-name: OU The Builder WBA Foundation
+name: OU The Builder WBA
 
 on:
   workflow_dispatch:
@@ -8,21 +8,40 @@ on:
 
 permissions:
   contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "ou-the-builder-wba"
+  cancel-in-progress: true
 
 jobs:
-  initialize-and-build:
+  build-and-deploy:
     runs-on: ubuntu-latest
 
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
     steps:
+      # ---------------------------------------------------------
+      # 1. Checkout repository
+      # ---------------------------------------------------------
       - name: Checkout repository
         uses: actions/checkout@v5
 
+      # ---------------------------------------------------------
+      # 2. Node.js 24
+      # ---------------------------------------------------------
       - name: Setup Node.js 24
         uses: actions/setup-node@v5
         with:
-          node-version: '24'
+          node-version: "24"
 
-      - name: Create WBA foundation
+      # ---------------------------------------------------------
+      # 3. Create application directories
+      # ---------------------------------------------------------
+      - name: Create WBA structure
         shell: bash
         run: |
           set -e
@@ -31,12 +50,17 @@ jobs:
           mkdir -p server
           mkdir -p docs
 
-          if [ ! -f package.json ]; then
-            cat > package.json <<'JSON'
+      # ---------------------------------------------------------
+      # 4. Root package
+      # ---------------------------------------------------------
+      - name: Create root package
+        shell: bash
+        run: |
+          cat > package.json <<'JSON'
           {
             "name": "ou-the-builder-wba",
             "private": true,
-            "version": "0.1.0",
+            "version": "0.2.0",
             "workspaces": [
               "client",
               "server"
@@ -47,18 +71,23 @@ jobs:
             }
           }
           JSON
-          fi
 
-          if [ ! -f client/package.json ]; then
-            cat > client/package.json <<'JSON'
+      # ---------------------------------------------------------
+      # 5. Frontend package
+      # ---------------------------------------------------------
+      - name: Create frontend package
+        shell: bash
+        run: |
+          cat > client/package.json <<'JSON'
           {
             "name": "ou-the-builder-wba-client",
             "private": true,
-            "version": "0.1.0",
+            "version": "0.2.0",
             "type": "module",
             "scripts": {
               "dev": "vite",
-              "build": "vite build"
+              "build": "vite build",
+              "preview": "vite preview"
             },
             "dependencies": {
               "@vitejs/plugin-react": "^5.0.4",
@@ -69,38 +98,60 @@ jobs:
             "devDependencies": {}
           }
           JSON
-          fi
 
-          if [ ! -f client/index.html ]; then
-            cat > client/index.html <<'HTML'
+      # ---------------------------------------------------------
+      # 6. Vite configuration
+      # ---------------------------------------------------------
+      - name: Create Vite configuration
+        shell: bash
+        run: |
+          cat > client/vite.config.js <<'JS'
+          import { defineConfig } from 'vite'
+          import react from '@vitejs/plugin-react'
+
+          export default defineConfig({
+            plugins: [react()],
+            base: './'
+          })
+          JS
+
+      # ---------------------------------------------------------
+      # 7. HTML
+      # ---------------------------------------------------------
+      - name: Create HTML entry
+        shell: bash
+        run: |
+          cat > client/index.html <<'HTML'
           <!doctype html>
           <html lang="en">
             <head>
               <meta charset="UTF-8" />
-              <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+              <meta
+                name="viewport"
+                content="width=device-width, initial-scale=1.0"
+              />
+              <meta
+                name="description"
+                content="OU The Builder - AI-powered web-based application builder"
+              />
+              <meta name="theme-color" content="#07101f" />
               <title>OU The Builder</title>
             </head>
+
             <body>
               <div id="root"></div>
               <script type="module" src="/src/main.jsx"></script>
             </body>
           </html>
           HTML
-          fi
 
-          if [ ! -f client/vite.config.js ]; then
-            cat > client/vite.config.js <<'JS'
-          import { defineConfig } from 'vite'
-          import react from '@vitejs/plugin-react'
-
-          export default defineConfig({
-            plugins: [react()]
-          })
-          JS
-          fi
-
-          if [ ! -f client/src/main.jsx ]; then
-            cat > client/src/main.jsx <<'JS'
+      # ---------------------------------------------------------
+      # 8. React entry
+      # ---------------------------------------------------------
+      - name: Create React entry
+        shell: bash
+        run: |
+          cat > client/src/main.jsx <<'JS'
           import React from 'react'
           import { createRoot } from 'react-dom/client'
           import App from './App.jsx'
@@ -112,353 +163,463 @@ jobs:
             </React.StrictMode>
           )
           JS
-          fi
 
-          if [ ! -f client/src/App.jsx ]; then
-            cat > client/src/App.jsx <<'JS'
-          import React from 'react'
+      # ---------------------------------------------------------
+      # 9. Main application
+      # ---------------------------------------------------------
+      - name: Create WBA application
+        shell: bash
+        run: |
+          cat > client/src/App.jsx <<'JS'
+          import React, { useEffect, useMemo, useRef, useState } from 'react'
+
+          const navItems = [
+            { id: 'home', icon: '⌂', label: 'Home' },
+            { id: 'projects', icon: '▣', label: 'Projects' },
+            { id: 'files', icon: '▤', label: 'Files' },
+            { id: 'build', icon: '⚙', label: 'Build' },
+            { id: 'chat', icon: '▢', label: 'AI Chat' },
+            { id: 'flow', icon: '◇', label: 'Image Flow' },
+            { id: 'drive', icon: '△', label: 'Google Drive' },
+            { id: 'settings', icon: '⚙', label: 'Settings' }
+          ]
+
+          const initialProjects = []
+
+          function loadProjects() {
+            try {
+              return JSON.parse(
+                localStorage.getItem('ou-builder-projects') || 'null'
+              ) || initialProjects
+            } catch {
+              return initialProjects
+            }
+          }
+
+          function loadActivity() {
+            try {
+              return JSON.parse(
+                localStorage.getItem('ou-builder-activity') || 'null'
+              ) || []
+            } catch {
+              return []
+            }
+          }
 
           function App() {
-            return (
-              <main className="app">
-                <header className="header">
-                  <div>
-                    <div className="brand">OU THE BUILDER</div>
-                    <div className="subtitle">Web-Based Application</div>
-                  </div>
+            const [active, setActive] = useState('home')
+            const [projects, setProjects] = useState(loadProjects)
+            const [activity, setActivity] = useState(loadActivity)
+            const [selectedProject, setSelectedProject] = useState(null)
+            const [files, setFiles] = useState([])
+            const [showProjectDialog, setShowProjectDialog] = useState(false)
+            const [projectName, setProjectName] = useState('')
+            const [chatMessage, setChatMessage] = useState('')
+            const [chatMessages, setChatMessages] = useState([
+              {
+                type: 'builder',
+                text:
+                  "Hello! I'm your OU The Builder AI assistant. 👋 You can ask me about projects, files, building, APK compilation, or the application flow."
+              }
+            ])
+            const [buildStatus, setBuildStatus] = useState('Ready')
+            const fileInput = useRef(null)
 
-                  <div className="status">
-                    <span className="dot"></span>
-                    Foundation Online
-                  </div>
-                </header>
+            useEffect(() => {
+              localStorage.setItem(
+                'ou-builder-projects',
+                JSON.stringify(projects)
+              )
+            }, [projects])
 
-                <section className="hero">
-                  <div className="badge">WBA FOUNDATION</div>
+            useEffect(() => {
+              localStorage.setItem(
+                'ou-builder-activity',
+                JSON.stringify(activity)
+              )
+            }, [activity])
 
-                  <h1>Build. Create. Compile.</h1>
-
-                  <p>
-                    OU The Builder is being built as a centralized web-based
-                    application where projects, files, AI tools, manual
-                    building, and APK compilation work together.
-                  </p>
-                </section>
-
-                <section className="grid">
-                  <article className="card">
-                    <span>01</span>
-                    <h2>Projects</h2>
-                    <p>Centralized project management.</p>
-                  </article>
-
-                  <article className="card">
-                    <span>02</span>
-                    <h2>Files</h2>
-                    <p>One project file system for Builder features.</p>
-                  </article>
-
-                  <article className="card">
-                    <span>03</span>
-                    <h2>AI Builder</h2>
-                    <p>AI operates on the same project source.</p>
-                  </article>
-
-                  <article className="card">
-                    <span>04</span>
-                    <h2>Build</h2>
-                    <p>Manual and automated APK compilation.</p>
-                  </article>
-                </section>
-
-                <section className="chat">
-                  <div className="chat-title">AI BUILDER</div>
-                  <p>
-                    Central AI control will be connected to the project and
-                    build systems in the next stages.
-                  </p>
-
-                  <div className="input">
-                    Ask OU The Builder...
-                    <button>→</button>
-                  </div>
-                </section>
-              </main>
+            const currentProject = useMemo(
+              () =>
+                projects.find(
+                  project => project.id === selectedProject
+                ) || null,
+              [projects, selectedProject]
             )
-          }
 
-          export default App
-          JS
-          fi
-
-          if [ ! -f client/src/App.css ]; then
-            cat > client/src/App.css <<'CSS'
-          :root {
-            font-family: Inter, system-ui, sans-serif;
-            color: #f5f7ff;
-            background: #070a14;
-          }
-
-          * {
-            box-sizing: border-box;
-          }
-
-          body {
-            margin: 0;
-            min-width: 320px;
-            background:
-              radial-gradient(circle at 20% 0%, #15204a 0, transparent 35%),
-              radial-gradient(circle at 90% 20%, #241345 0, transparent 30%),
-              #070a14;
-          }
-
-          .app {
-            width: min(1180px, 100%);
-            margin: auto;
-            padding: 28px;
-          }
-
-          .header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            gap: 20px;
-            padding: 8px 0 34px;
-          }
-
-          .brand {
-            font-weight: 900;
-            letter-spacing: 2px;
-            color: #7ddcff;
-          }
-
-          .subtitle {
-            margin-top: 5px;
-            color: #8993aa;
-            font-size: 13px;
-          }
-
-          .status {
-            border: 1px solid #263450;
-            border-radius: 999px;
-            padding: 9px 14px;
-            color: #aeb8ca;
-            font-size: 13px;
-          }
-
-          .dot {
-            display: inline-block;
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: #39e6a5;
-            margin-right: 8px;
-          }
-
-          .hero {
-            border: 1px solid #263354;
-            border-radius: 24px;
-            padding: 45px;
-            background: linear-gradient(135deg, #101a35, #0d1020);
-            box-shadow: 0 20px 60px rgba(0, 0, 0, .25);
-          }
-
-          .badge {
-            color: #bd8cff;
-            font-size: 12px;
-            font-weight: 800;
-            letter-spacing: 2px;
-          }
-
-          h1 {
-            font-size: clamp(38px, 7vw, 72px);
-            line-height: .98;
-            margin: 16px 0;
-          }
-
-          .hero p {
-            max-width: 760px;
-            color: #aab4c8;
-            line-height: 1.7;
-            font-size: 17px;
-          }
-
-          .grid {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 15px;
-            margin-top: 18px;
-          }
-
-          .card,
-          .chat {
-            border: 1px solid #242f4a;
-            border-radius: 18px;
-            background: #0c1120;
-          }
-
-          .card {
-            padding: 22px;
-            min-height: 150px;
-          }
-
-          .card span {
-            color: #7ddcff;
-            font-size: 12px;
-            font-weight: 800;
-          }
-
-          h2 {
-            margin: 12px 0 8px;
-            font-size: 20px;
-          }
-
-          .card p,
-          .chat p {
-            color: #8994aa;
-            line-height: 1.5;
-          }
-
-          .chat {
-            margin-top: 18px;
-            padding: 24px;
-          }
-
-          .chat-title {
-            color: #bd8cff;
-            font-weight: 800;
-            letter-spacing: 1px;
-            font-size: 13px;
-          }
-
-          .input {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            border: 1px solid #303b59;
-            border-radius: 14px;
-            padding: 14px 14px 14px 18px;
-            color: #66738c;
-          }
-
-          button {
-            border: 0;
-            border-radius: 10px;
-            padding: 9px 14px;
-            background: #7ddcff;
-            color: #07101d;
-            font-weight: 900;
-            cursor: pointer;
-          }
-
-          @media (max-width: 800px) {
-            .app {
-              padding: 18px;
+            function addActivity(text) {
+              setActivity(previous => [
+                {
+                  id: Date.now(),
+                  text,
+                  time: new Date().toLocaleTimeString([], {
+                    hour: '2-digit',
+                    minute: '2-digit'
+                  })
+                },
+                ...previous
+              ].slice(0, 8))
             }
 
-            .header {
-              align-items: flex-start;
+            function createProject() {
+              const name = projectName.trim()
+
+              if (!name) return
+
+              const project = {
+                id: Date.now().toString(),
+                name,
+                target: 'Android APK',
+                files: [],
+                created: new Date().toISOString()
+              }
+
+              setProjects(previous => [project, ...previous])
+              setSelectedProject(project.id)
+              setProjectName('')
+              setShowProjectDialog(false)
+              addActivity(`Created project "${name}"`)
+              setActive('projects')
             }
 
-            .grid {
-              grid-template-columns: repeat(2, 1fr);
+            function handleFiles(event) {
+              const selectedFiles = Array.from(event.target.files || [])
+
+              if (!selectedFiles.length) return
+
+              const fileInfo = selectedFiles.map(file => ({
+                id: `${file.name}-${file.size}-${Date.now()}`,
+                name: file.name,
+                size: file.size,
+                type: file.type || 'Unknown',
+                modified: new Date().toISOString()
+              }))
+
+              setFiles(previous => [...fileInfo, ...previous])
+              addActivity(
+                `${selectedFiles.length} file${selectedFiles.length > 1 ? 's' : ''} uploaded`
+              )
+              setActive('files')
+
+              event.target.value = ''
             }
 
-            .hero {
-              padding: 30px 24px;
-            }
-          }
-
-          @media (max-width: 520px) {
-            .header {
-              flex-direction: column;
+            function openUpload() {
+              fileInput.current?.click()
             }
 
-            .status {
-              align-self: flex-start;
+            function sendChat(text = chatMessage) {
+              const message = text.trim()
+
+              if (!message) return
+
+              setChatMessages(previous => [
+                ...previous,
+                { type: 'user', text: message }
+              ])
+
+              setChatMessage('')
+
+              const lower = message.toLowerCase()
+
+              let response =
+                'I can work with your project system, files, build system, and application flow. This AI connection will be connected to the backend in the next stage.'
+
+              if (lower.includes('project')) {
+                response =
+                  'I can create and manage projects. Use "Create New Project" to start one.'
+              } else if (
+                lower.includes('upload') ||
+                lower.includes('file')
+              ) {
+                response =
+                  'Use the Files section or "Upload File". Uploaded files will become part of the centralized Builder file system as the backend is connected.'
+              } else if (
+                lower.includes('apk') ||
+                lower.includes('build') ||
+                lower.includes('compile')
+              ) {
+                response =
+                  'The Build system is being prepared for remote Android compilation. The same project source will be used by manual and AI build commands.'
+              } else if (
+                lower.includes('flow') ||
+                lower.includes('screen')
+              ) {
+                response =
+                  'Image Flow will provide a visual representation of project screens, buttons, and navigation.'
+              }
+
+              setTimeout(() => {
+                setChatMessages(previous => [
+                  ...previous,
+                  { type: 'builder', text: response }
+                ])
+              }, 250)
             }
 
-            .grid {
-              grid-template-columns: 1fr;
+            function runBuild() {
+              if (!currentProject) {
+                setActive('projects')
+                addActivity('Build requested without a selected project')
+                return
+              }
+
+              setBuildStatus('Preparing...')
+              addActivity(`Build started for "${currentProject.name}"`)
+
+              setTimeout(() => setBuildStatus('Checking project...'), 700)
+              setTimeout(() => setBuildStatus('Ready for remote compile'), 1500)
             }
 
-            .hero {
-              border-radius: 20px;
+            function renderHome() {
+              return (
+                <>
+                  <section className="welcome">
+                    <div className="welcome-copy">
+                      <div className="eyebrow">WEB-BASED APPLICATION</div>
+
+                      <h1>
+                        Welcome to
+                        <br />
+                        <span>OU</span> The Builder
+                      </h1>
+
+                      <p>
+                        Your AI-powered web-based app builder. Create,
+                        manage, build and bring your ideas to life — faster
+                        and easier.
+                      </p>
+                    </div>
+
+                    <div className="hero-art">
+                      <div className="monitor">
+                        <div className="monitor-top">
+                          <i />
+                          <i />
+                          <i />
+                        </div>
+                        <div className="code">&lt;/&gt;</div>
+                      </div>
+
+                      <div className="phone">
+                        <div>◆</div>
+                      </div>
+
+                      <div className="cloud">↑</div>
+                    </div>
+                  </section>
+
+                  <section className="feature-grid">
+                    <FeatureCard
+                      icon="▢"
+                      title="AI Builder"
+                      text="Use the AI chat as the central control interface for all builder capabilities."
+                      className="blue"
+                      onClick={() => setActive('chat')}
+                    />
+
+                    <FeatureCard
+                      icon="▣"
+                      title="Projects"
+                      text="Create and manage your projects, files and resources in one place."
+                      className="green"
+                      onClick={() => setActive('projects')}
+                    />
+
+                    <FeatureCard
+                      icon="⚙"
+                      title="Build"
+                      text="Prepare your project for remote compilation and APK generation."
+                      className="orange"
+                      onClick={() => setActive('build')}
+                    />
+
+                    <FeatureCard
+                      icon="◇"
+                      title="Image Flow"
+                      text="Visualize your app's screens, buttons and flows before compiling."
+                      className="purple"
+                      onClick={() => setActive('flow')}
+                    />
+                  </section>
+
+                  <section className="home-columns">
+                    <div className="chat-panel">
+                      <ChatPanel
+                        messages={chatMessages}
+                        message={chatMessage}
+                        setMessage={setChatMessage}
+                        onSend={sendChat}
+                        onQuick={sendChat}
+                      />
+                    </div>
+
+                    <aside className="right-stack">
+                      <CurrentProject
+                        project={currentProject}
+                        onNew={() => setShowProjectDialog(true)}
+                        onOpen={() => setActive('projects')}
+                      />
+
+                      <QuickActions
+                        onNew={() => setShowProjectDialog(true)}
+                        onUpload={openUpload}
+                        onDrive={() => setActive('drive')}
+                        onLogs={() => setActive('build')}
+                      />
+
+                      <SystemStatus />
+                      <RecentActivity activity={activity} />
+                    </aside>
+                  </section>
+                </>
+              )
             }
-          }
-          CSS
-          fi
 
-          if [ ! -f server/package.json ]; then
-            cat > server/package.json <<'JSON'
-          {
-            "name": "ou-the-builder-wba-server",
-            "private": true,
-            "version": "0.1.0",
-            "type": "module",
-            "scripts": {
-              "start": "node index.js"
-            },
-            "dependencies": {
-              "cors": "^2.8.5",
-              "dotenv": "^17.2.2",
-              "express": "^5.1.0"
-            }
-          }
-          JSON
-          fi
+            function renderPage() {
+              if (active === 'home') return renderHome()
 
-          if [ ! -f server/index.js ]; then
-            cat > server/index.js <<'JS'
-          import express from 'express'
-          import cors from 'cors'
-          import 'dotenv/config'
+              if (active === 'projects') {
+                return (
+                  <Page
+                    title="Projects"
+                    subtitle="Create and manage your Builder projects."
+                    action={
+                      <button
+                        className="primary-button"
+                        onClick={() => setShowProjectDialog(true)}
+                      >
+                        + New Project
+                      </button>
+                    }
+                  >
+                    <div className="section-grid">
+                      {projects.length === 0 ? (
+                        <EmptyState
+                          icon="▣"
+                          title="No projects yet"
+                          text="Create your first Builder project to get started."
+                          action={
+                            <button
+                              className="primary-button"
+                              onClick={() => setShowProjectDialog(true)}
+                            >
+                              Create New Project
+                            </button>
+                          }
+                        />
+                      ) : (
+                        projects.map(project => (
+                          <article
+                            className={`project-card ${
+                              selectedProject === project.id
+                                ? 'selected'
+                                : ''
+                            }`}
+                            key={project.id}
+                            onClick={() => setSelectedProject(project.id)}
+                          >
+                            <div className="project-icon">▣</div>
+                            <div>
+                              <h3>{project.name}</h3>
+                              <p>{project.target}</p>
+                              <small>
+                                {new Date(project.created).toLocaleDateString()}
+                              </small>
+                            </div>
+                          </article>
+                        ))
+                      )}
+                    </div>
+                  </Page>
+                )
+              }
 
-          const app = express()
-          const port = process.env.PORT || 3000
+              if (active === 'files') {
+                return (
+                  <Page
+                    title="Files"
+                    subtitle="Central project files and uploaded resources."
+                    action={
+                      <button
+                        className="primary-button"
+                        onClick={openUpload}
+                      >
+                        ↑ Upload File
+                      </button>
+                    }
+                  >
+                    <div className="file-drop" onClick={openUpload}>
+                      <div className="drop-icon">↑</div>
+                      <h3>Upload project files</h3>
+                      <p>
+                        ZIP, source files, documents, images, audio, video
+                        and project resources.
+                      </p>
+                      <span>Tap to choose files</span>
+                    </div>
 
-          app.use(cors())
-          app.use(express.json())
+                    <div className="file-list">
+                      {files.length === 0 ? (
+                        <EmptyState
+                          icon="▤"
+                          title="No uploaded files"
+                          text="Files uploaded through this interface will appear here."
+                        />
+                      ) : (
+                        files.map(file => (
+                          <div className="file-row" key={file.id}>
+                            <div className="file-icon">▤</div>
+                            <div className="file-info">
+                              <strong>{file.name}</strong>
+                              <span>
+                                {formatSize(file.size)} · {file.type}
+                              </span>
+                            </div>
+                            <span className="file-ready">Ready</span>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </Page>
+                )
+              }
 
-          app.get('/api/health', (_req, res) => {
-            res.json({
-              status: 'ok',
-              service: 'OU The Builder WBA API'
-            })
-          })
+              if (active === 'build') {
+                return (
+                  <Page
+                    title="Build"
+                    subtitle="Prepare and compile the selected project."
+                  >
+                    <div className="build-layout">
+                      <section className="build-card">
+                        <div className="build-header">
+                          <div>
+                            <span className="eyebrow">BUILD TARGET</span>
+                            <h2>Android APK</h2>
+                          </div>
 
-          app.get('/api/projects', (_req, res) => {
-            res.json({
-              projects: []
-            })
-          })
+                          <span className="status-pill ready">
+                            {buildStatus}
+                          </span>
+                        </div>
 
-          app.listen(port, () => {
-            console.log(`OU The Builder API listening on port ${port}`)
-          })
-          JS
-          fi
+                        <div className="build-options">
+                          <div className="build-option active">
+                            <strong>Android APK</strong>
+                            <span>Remote Android compilation</span>
+                          </div>
 
-          if [ -f ARCHITECTURE.md ]; then
-            cp ARCHITECTURE.md docs/ARCHITECTURE.md
-          fi
+                          <div className="build-option">
+                            <strong>Web App</strong>
+                            <span>Web deployment target</span>
+                          </div>
+                        </div>
 
-      - name: Install dependencies
-        run: npm install
-
-      - name: Build WBA frontend
-        run: npm run build
-
-      - name: Verify foundation
-        run: |
-          set -e
-          test -d client/dist
-          test -f client/dist/index.html
-          test -f server/index.js
-          echo "OU The Builder WBA foundation verified successfully."
-
-      - name: Upload WBA build
-        uses: actions/upload-artifact@v4
-        with:
-          name: ou-the-builder-wba
-          path: client/dist
+                        <div className="build-project">
+                          <span>Current Project</span>
+                          <strong>
+                            {currentProject
+                              ? currentProject.name
+                              : 'No project selected'}
+                          </strong
