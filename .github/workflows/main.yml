@@ -1,0 +1,143 @@
+name: OU The Builder WBA Foundation
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  initialize-and-build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js 24
+        uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Create WBA foundation
+        shell: bash
+        run: |
+          set -e
+
+          mkdir -p client/src
+          mkdir -p server
+          mkdir -p docs
+
+          if [ ! -f package.json ]; then
+            cat > package.json <<'JSON'
+          {
+            "name": "ou-the-builder-wba",
+            "private": true,
+            "version": "0.1.0",
+            "workspaces": [
+              "client",
+              "server"
+            ],
+            "scripts": {
+              "build": "npm run build --workspace client",
+              "start": "npm start --workspace server"
+            }
+          }
+          JSON
+          fi
+
+          if [ ! -f client/package.json ]; then
+            cat > client/package.json <<'JSON'
+          {
+            "name": "ou-the-builder-wba-client",
+            "private": true,
+            "version": "0.1.0",
+            "type": "module",
+            "scripts": {
+              "dev": "vite",
+              "build": "vite build"
+            },
+            "dependencies": {
+              "@vitejs/plugin-react": "^5.0.4",
+              "vite": "^7.1.7",
+              "react": "^19.1.1",
+              "react-dom": "^19.1.1"
+            },
+            "devDependencies": {}
+          }
+          JSON
+          fi
+
+          if [ ! -f client/index.html ]; then
+            cat > client/index.html <<'HTML'
+          <!doctype html>
+          <html lang="en">
+            <head>
+              <meta charset="UTF-8" />
+              <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+              <title>OU The Builder</title>
+            </head>
+            <body>
+              <div id="root"></div>
+              <script type="module" src="/src/main.jsx"></script>
+            </body>
+          </html>
+          HTML
+          fi
+
+          if [ ! -f client/vite.config.js ]; then
+            cat > client/vite.config.js <<'JS'
+          import { defineConfig } from 'vite'
+          import react from '@vitejs/plugin-react'
+
+          export default defineConfig({
+            plugins: [react()]
+          })
+          JS
+          fi
+
+          if [ ! -f client/src/main.jsx ]; then
+            cat > client/src/main.jsx <<'JS'
+          import React from 'react'
+          import { createRoot } from 'react-dom/client'
+          import App from './App.jsx'
+          import './App.css'
+
+          createRoot(document.getElementById('root')).render(
+            <React.StrictMode>
+              <App />
+            </React.StrictMode>
+          )
+          JS
+          fi
+
+          if [ ! -f client/src/App.jsx ]; then
+            cat > client/src/App.jsx <<'JS'
+          import React from 'react'
+
+          function App() {
+            return (
+              <main className="app">
+                <header className="header">
+                  <div>
+                    <div className="brand">OU THE BUILDER</div>
+                    <div className="subtitle">Web-Based Application</div>
+                  </div>
+
+                  <div className="status">
+                    <span className="dot"></span>
+                    Foundation Online
+                  </div>
+                </header>
+
+                <section className="hero">
+                  <div className="badge">WBA FOUNDATION</div>
+
+                  <h1>Build. Create. Compile.</h1>
+
+                  <p>
+                    OU The Builder is being built as a centralized web
