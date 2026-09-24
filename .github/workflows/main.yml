@@ -1,0 +1,372 @@
+name: OU The Builder
+
+on:
+  push:
+    branches:
+      - main
+
+  workflow_dispatch:
+    inputs:
+      android_project_zip:
+        description: "Optional direct HTTPS URL to an Android project ZIP"
+        required: false
+        type: string
+
+      android_build_type:
+        description: "Android build type"
+        required: true
+        default: "debug"
+        type: choice
+        options:
+          - debug
+          - release
+
+      android_gradle_task:
+        description: "Optional Gradle task (leave blank for automatic detection)"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: true
+
+jobs:
+
+  # ============================================================
+  # EXISTING WBA BUILD + GITHUB PAGES DEPLOYMENT
+  # ============================================================
+  build-and-deploy-wba:
+    name: Build and Deploy OU The Builder WBA
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js 24
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          set -e
+
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
+
+      - name: Build OU The Builder WBA
+        shell: bash
+        run: |
+          set -e
+          npm run build
+
+      - name: Verify WBA build
+        shell: bash
+        run: |
+          set -e
+
+          test -f dist/index.html
+
+          echo "WBA build verified successfully."
+          echo "Build output:"
+          find dist -maxdepth 2 -type f | sort | head -200
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload WBA Pages artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: dist
+
+      - name: Deploy WBA to GitHub Pages
+        uses: actions/deploy-pages@v4
+
+
+  # ============================================================
+  # REMOTE ANDROID BUILD
+  #
+  # This job only runs when manually started with an Android
+  # project ZIP URL.
+  #
+  # It does NOT modify the WBA deployment job above.
+  # ============================================================
+  remote-android-build:
+    name: Remote Android APK Build
+    runs-on: ubuntu-24.04
+
+    if: >
+      github.event_name == 'workflow_dispatch' &&
+      github.event.inputs.android_project_zip != ''
+
+    permissions:
+      contents: read
+
+    steps:
+
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v4
+
+      - name: Install Android SDK components
+        shell: bash
+        run: |
+          set -e
+
+          yes | sdkmanager --licenses >/dev/null || true
+
+          sdkmanager \
+            "platform-tools" \
+            "platforms;android-36" \
+            "build-tools;36.0.0"
+
+      - name: Prepare Android project workspace
+        shell: bash
+        env:
+          PROJECT_ZIP_URL: ${{ github.event.inputs.android_project_zip }}
+        run: |
+          set -e
+
+          rm -rf android-build
+          mkdir -p android-build
+
+          echo "Downloading Android project ZIP..."
+
+          curl \
+            --fail \
+            --location \
+            --show-error \
+            --retry 3 \
+            --connect-timeout 30 \
+            --output android-project.zip \
+            "$PROJECT_ZIP_URL"
+
+          test -s android-project.zip
+
+          echo "ZIP downloaded successfully."
+
+          unzip -q android-project.zip -d android-build
+
+          echo "Extracted project:"
+          find android-build -maxdepth 4 -type f | sort | head -300
+
+      - name: Locate Android project
+        shell: bash
+        run: |
+          set -e
+
+          GRADLEW_PATH="$(find android-build -type f -name gradlew -print -quit || true)"
+
+          if [ -z "$GRADLEW_PATH" ]; then
+            echo "::error::No gradlew file was found in the uploaded Android project."
+            echo "The project must contain a Gradle wrapper."
+            exit 1
+          fi
+
+          PROJECT_DIR="$(dirname "$GRADLEW_PATH")"
+
+          echo "Android project found:"
+          echo "$PROJECT_DIR"
+
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+
+      - name: Validate Gradle wrapper
+        shell: bash
+        run: |
+          set -e
+
+          cd "$PROJECT_DIR"
+
+          test -f gradlew
+
+          chmod +x gradlew
+
+          if [ ! -f gradle/wrapper/gradle-wrapper.jar ]; then
+            echo "::error::gradle-wrapper.jar is missing."
+            exit 1
+          fi
+
+          ./gradlew --version
+
+      - name: Inspect Android project
+        shell: bash
+        run: |
+          set -e
+
+          cd "$PROJECT_DIR"
+
+          echo "=============================="
+          echo "ANDROID PROJECT"
+          echo "=============================="
+
+          echo "Project directory:"
+          pwd
+
+          echo
+          echo "Gradle files:"
+          find . \
+            -maxdepth 4 \
+            \( \
+              -name "settings.gradle" \
+              -o -name "settings.gradle.kts" \
+              -o -name "build.gradle" \
+              -o -name "build.gradle.kts" \
+              -o -name "gradle.properties" \
+            \) \
+            -print | sort
+
+          echo
+          echo "Android manifests:"
+          find . -name AndroidManifest.xml -print | sort
+
+      - name: Determine Gradle build task
+        shell: bash
+        env:
+          REQUESTED_TASK: ${{ github.event.inputs.android_gradle_task }}
+          BUILD_TYPE: ${{ github.event.inputs.android_build_type }}
+        run: |
+          set -e
+
+          if [ -n "$REQUESTED_TASK" ]; then
+            BUILD_TASK="$REQUESTED_TASK"
+          elif [ "$BUILD_TYPE" = "release" ]; then
+            BUILD_TASK="assembleRelease"
+          else
+            BUILD_TASK="assembleDebug"
+          fi
+
+          echo "Gradle task: $BUILD_TASK"
+
+          echo "BUILD_TASK=$BUILD_TASK" >> "$GITHUB_ENV"
+
+      - name: Build Android APK
+        shell: bash
+        run: |
+          set -o pipefail
+
+          cd "$PROJECT_DIR"
+
+          echo "=============================="
+          echo "OU THE BUILDER REMOTE BUILD"
+          echo "=============================="
+
+          echo "Project: $PROJECT_DIR"
+          echo "Task: $BUILD_TASK"
+          echo "Java:"
+          java -version
+
+          echo
+          echo "Starting Gradle..."
+
+          ./gradlew "$BUILD_TASK" \
+            --stacktrace \
+            --no-daemon \
+            2>&1 | tee "$GITHUB_WORKSPACE/android-build.log"
+
+      - name: Locate generated APK
+        shell: bash
+        run: |
+          set -e
+
+          echo "Searching for APK files..."
+
+          find "$PROJECT_DIR" \
+            -type f \
+            -name "*.apk" \
+            -print | sort
+
+          APK_COUNT="$(find "$PROJECT_DIR" -type f -name "*.apk" | wc -l)"
+
+          if [ "$APK_COUNT" -eq 0 ]; then
+            echo "::error::Gradle completed but no APK was found."
+            exit 1
+          fi
+
+          mkdir -p "$GITHUB_WORKSPACE/android-build-output"
+
+          find "$PROJECT_DIR" \
+            -type f \
+            -name "*.apk" \
+            -exec cp {} "$GITHUB_WORKSPACE/android-build-output/" \;
+
+      - name: Save build information
+        shell: bash
+        run: |
+          set -e
+
+          cat > "$GITHUB_WORKSPACE/android-build-output/build-info.txt" <<EOF
+          OU The Builder Remote Android Build
+
+          Repository:
+          $GITHUB_REPOSITORY
+
+          Commit:
+          $GITHUB_SHA
+
+          Build type:
+          ${{ github.event.inputs.android_build_type }}
+
+          Gradle task:
+          $BUILD_TASK
+
+          Project directory:
+          $PROJECT_DIR
+
+          Java:
+          17
+
+          Android SDK:
+          36
+
+          Build tools:
+          36.0.0
+          EOF
+
+      - name: Include build log
+        shell: bash
+        run: |
+          set -e
+
+          cp \
+            "$GITHUB_WORKSPACE/android-build.log" \
+            "$GITHUB_WORKSPACE/android-build-output/android-build.log"
+
+      - name: Upload APK and build log
+        uses: actions/upload-artifact@v4
+        with:
+          name: ou-the-builder-android-build-${{ github.run_number }}
+          path: android-build-output
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Build completed
+        shell: bash
+        run: |
+          echo "=========================================="
+          echo "OU THE BUILDER ANDROID BUILD COMPLETED"
+          echo "=========================================="
+          echo
+          echo "APK files:"
+          find android-build-output -type f -name "*.apk" -print
+          echo
+          echo "The APK and build log are available"
+          echo "in the GitHub Actions artifact."
