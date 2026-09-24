@@ -1,0 +1,538 @@
+name: OU The Builder WBA - Build and Deploy
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-24.04
+
+    steps:
+
+      # ---------------------------------------------------------
+      # 1. CHECKOUT
+      # ---------------------------------------------------------
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+
+      # ---------------------------------------------------------
+      # 2. NODE.JS 24
+      # ---------------------------------------------------------
+      - name: Setup Node.js 24
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      # ---------------------------------------------------------
+      # 3. VERIFY REPOSITORY
+      # ---------------------------------------------------------
+      - name: Verify project structure
+        shell: bash
+        run: |
+          set -e
+
+          echo "=========================================="
+          echo "OU THE BUILDER WBA"
+          echo "Project verification"
+          echo "=========================================="
+
+          echo ""
+          echo "Node:"
+          node --version
+
+          echo ""
+          echo "NPM:"
+          npm --version
+
+          echo ""
+          echo "Repository:"
+          pwd
+
+          echo ""
+          echo "Files:"
+          find . -maxdepth 2 -type f \
+            ! -path './.git/*' \
+            | sort \
+            | head -200
+
+      # ---------------------------------------------------------
+      # 4. RESTORE KNOWN-GOOD APP.JSX
+      #
+      # The previous workflow accidentally placed GitHub Actions
+      # YAML inside App.jsx.
+      #
+      # This commit is the last known-good foundation build from
+      # the supplied build log.
+      # ---------------------------------------------------------
+      - name: Restore known-good App.jsx
+        shell: bash
+        run: |
+          set -e
+
+          GOOD_COMMIT="bc66f651c0bb905c2e6d8673b7b93acf6c41c350"
+
+          echo "Restoring src/App.jsx from:"
+          echo "$GOOD_COMMIT"
+
+          git fetch origin "$GOOD_COMMIT" --depth=1
+
+          mkdir -p src
+
+          git show "$GOOD_COMMIT:src/App.jsx" > src/App.jsx
+
+          echo ""
+          echo "Restored App.jsx:"
+          wc -l src/App.jsx
+          wc -c src/App.jsx
+
+          echo ""
+          echo "First lines:"
+          sed -n '1,12p' src/App.jsx
+
+      # ---------------------------------------------------------
+      # 5. ADD "USE THIS FOLDER" SUPPORT
+      # ---------------------------------------------------------
+      - name: Add Use This Folder support
+        shell: bash
+        run: |
+          set -e
+
+          python3 <<'PY'
+          from pathlib import Path
+
+          path = Path("src/App.jsx")
+          text = path.read_text()
+
+          # ---------------------------------------------------
+          # Add folder input ref
+          # ---------------------------------------------------
+          old = """  const fileInput = useRef(null)
+          """
+
+          new = """  const fileInput = useRef(null)
+            const folderInput = useRef(null)
+          """
+
+          if old not in text:
+              raise SystemExit(
+                  "ERROR: fileInput section was not found."
+              )
+
+          text = text.replace(old, new, 1)
+
+          # ---------------------------------------------------
+          # Add folder picker function
+          # ---------------------------------------------------
+          old = """  function openFilePicker() {
+            fileInput.current?.click()
+          }
+
+          function handleFiles(event) {
+          """
+
+          new = """  function openFilePicker() {
+            fileInput.current?.click()
+          }
+
+          function openFolderPicker() {
+            folderInput.current?.click()
+          }
+
+          function handleFiles(event) {
+          """
+
+          if old not in text:
+              raise SystemExit(
+                  "ERROR: openFilePicker section was not found."
+              )
+
+          text = text.replace(old, new, 1)
+
+          # ---------------------------------------------------
+          # Add folder handling
+          # ---------------------------------------------------
+          old = """  function clearFiles() {
+            setFiles([])
+          }
+          """
+
+          new = """  function handleFolder(event) {
+            const selected = Array.from(
+              event.target.files || []
+            )
+
+            const prepared = selected.map(file => ({
+              id: `folder-${file.webkitRelativePath || file.name}-${file.size}-${Date.now()}-${Math.random()}`,
+              name: file.webkitRelativePath || file.name,
+              size: file.size,
+              type: file.type || 'Folder Resource'
+            }))
+
+            setFiles(previous => [...previous, ...prepared])
+
+            event.target.value = ''
+          }
+
+          function clearFiles() {
+            setFiles([])
+          }
+          """
+
+          if old not in text:
+              raise SystemExit(
+                  "ERROR: clearFiles section was not found."
+              )
+
+          text = text.replace(old, new, 1)
+
+          # ---------------------------------------------------
+          # Pass openFolderPicker into FilesPage
+          # ---------------------------------------------------
+          old = """          <FilesPage
+            files={files}
+            openFilePicker={openFilePicker}
+            clearFiles={clearFiles}
+          />
+          """
+
+          new = """          <FilesPage
+            files={files}
+            openFilePicker={openFilePicker}
+            openFolderPicker={openFolderPicker}
+            clearFiles={clearFiles}
+          />
+          """
+
+          if old not in text:
+              raise SystemExit(
+                  "ERROR: FilesPage call was not found."
+              )
+
+          text = text.replace(old, new, 1)
+
+          # ---------------------------------------------------
+          # Add hidden folder input
+          # ---------------------------------------------------
+          old = """      <input
+        ref={fileInput}
+        type="file"
+        multiple
+        hidden
+        onChange={handleFiles}
+      />
+
+    </div>
+  )
+}
+"""
+
+          new = """      <input
+        ref={fileInput}
+        type="file"
+        multiple
+        hidden
+        onChange={handleFiles}
+      />
+
+      <input
+        ref={folderInput}
+        type="file"
+        webkitdirectory=""
+        directory=""
+        multiple
+        hidden
+        onChange={handleFolder}
+      />
+
+    </div>
+  )
+}
+"""
+
+          if old not in text:
+              raise SystemExit(
+                  "ERROR: file input section was not found."
+              )
+
+          text = text.replace(old, new, 1)
+
+          # ---------------------------------------------------
+          # Add openFolderPicker prop to FilesPage
+          # ---------------------------------------------------
+          old = """function FilesPage({
+            files,
+            openFilePicker,
+            clearFiles
+          }) {
+          """
+
+          new = """function FilesPage({
+            files,
+            openFilePicker,
+            openFolderPicker,
+            clearFiles
+          }) {
+          """
+
+          if old not in text:
+              raise SystemExit(
+                  "ERROR: FilesPage function was not found."
+              )
+
+          text = text.replace(old, new, 1)
+
+          # ---------------------------------------------------
+          # Add Use This Folder button
+          # ---------------------------------------------------
+          old = """        <PanelHeader
+          title="Project Resources"
+          subtitle={`${files.length} file${
+            files.length === 1 ? '' : 's'
+          } selected`}
+          action={files.length ? 'Clear' : undefined}
+          onAction={clearFiles}
+        />
+
+        {files.length === 0 ? (
+          <EmptyState
+          """
+
+          new = """        <PanelHeader
+          title="Project Resources"
+          subtitle={`${files.length} file${
+            files.length === 1 ? '' : 's'
+          } selected`}
+          action={files.length ? 'Clear' : undefined}
+          onAction={clearFiles}
+        />
+
+        <div
+          style={{
+            display: 'flex',
+            gap: '10px',
+            flexWrap: 'wrap',
+            marginBottom: '18px'
+          }}
+        >
+          <button
+            className="secondary-button"
+            onClick={openFilePicker}
+          >
+            ＋ Add Files / ZIP
+          </button>
+
+          <button
+            className="secondary-button"
+            onClick={openFolderPicker}
+          >
+            📁 Use this Folder
+          </button>
+        </div>
+
+        {files.length === 0 ? (
+          <EmptyState
+          """
+
+          if old not in text:
+              raise SystemExit(
+                  "ERROR: Project Resources section was not found."
+              )
+
+          text = text.replace(old, new, 1)
+
+          # ---------------------------------------------------
+          # Update empty-state wording
+          # ---------------------------------------------------
+          text = text.replace(
+              'text="Add ZIP files, source files, images or other project resources from your device."',
+              'text="Add files or ZIP files, or choose Use this Folder to import an entire extracted project folder."',
+              1
+          )
+
+          # ---------------------------------------------------
+          # Safety check
+          # ---------------------------------------------------
+          if text.lstrip().startswith("- name:"):
+              raise SystemExit(
+                  "ERROR: YAML was accidentally inserted into App.jsx."
+              )
+
+          if "uses: actions/" in text[:1000]:
+              raise SystemExit(
+                  "ERROR: GitHub Actions YAML detected inside App.jsx."
+              )
+
+          path.write_text(text)
+
+          print("Use this Folder support added successfully.")
+          PY
+
+      # ---------------------------------------------------------
+      # 6. CHECK APP.JSX BEFORE BUILD
+      # ---------------------------------------------------------
+      - name: Validate App.jsx
+        shell: bash
+        run: |
+          set -e
+
+          echo "Checking App.jsx..."
+
+          test -f src/App.jsx
+
+          if grep -q "^- name:" src/App.jsx; then
+            echo "ERROR: YAML detected in App.jsx."
+            exit 1
+          fi
+
+          if grep -q "uses: actions/" src/App.jsx; then
+            echo "ERROR: GitHub Actions configuration detected in App.jsx."
+            exit 1
+          fi
+
+          if grep -q "function App()" src/App.jsx; then
+            echo "✓ React App component detected."
+          else
+            echo "ERROR: React App component not detected."
+            exit 1
+          fi
+
+          if grep -q "Use this Folder" src/App.jsx; then
+            echo "✓ Use this Folder feature detected."
+          else
+            echo "ERROR: Use this Folder feature missing."
+            exit 1
+          fi
+
+          echo ""
+          echo "App.jsx validation passed."
+
+      # ---------------------------------------------------------
+      # 7. INSTALL DEPENDENCIES
+      # ---------------------------------------------------------
+      - name: Install dependencies
+        shell: bash
+        run: |
+          set -e
+
+          echo "Installing dependencies..."
+
+          npm install --no-audit --no-fund
+
+      # ---------------------------------------------------------
+      # 8. BUILD
+      # ---------------------------------------------------------
+      - name: Build OU The Builder WBA
+        shell: bash
+        run: |
+          set -e
+
+          echo ""
+          echo "=========================================="
+          echo "BUILDING OU THE BUILDER WBA"
+          echo "=========================================="
+
+          npm run build
+
+      # ---------------------------------------------------------
+      # 9. VERIFY BUILD OUTPUT
+      # ---------------------------------------------------------
+      - name: Verify build output
+        shell: bash
+        run: |
+          set -e
+
+          echo "Checking build output..."
+
+          test -f dist/index.html
+
+          echo ""
+          echo "Build output:"
+          find dist -maxdepth 3 -type f | sort
+
+          echo ""
+          echo "=========================================="
+          echo "BUILD SUCCESSFUL"
+          echo "=========================================="
+
+      # ---------------------------------------------------------
+      # 10. SAVE BUILD ARTIFACT
+      # ---------------------------------------------------------
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ou-the-builder-wba-dist
+          path: dist
+          if-no-files-found: error
+          retention-days: 7
+
+      # ---------------------------------------------------------
+      # 11. CONFIGURE GITHUB PAGES
+      # ---------------------------------------------------------
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      # ---------------------------------------------------------
+      # 12. PREPARE PAGES ARTIFACT
+      # ---------------------------------------------------------
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: ./dist
+
+      # ---------------------------------------------------------
+      # 13. DEPLOY
+      # ---------------------------------------------------------
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+      # ---------------------------------------------------------
+      # 14. FINAL STATUS
+      # ---------------------------------------------------------
+      - name: Build summary
+        shell: bash
+        run: |
+          echo ""
+          echo "=========================================="
+          echo "OU THE BUILDER WBA DEPLOYMENT COMPLETE"
+          echo "=========================================="
+          echo ""
+          echo "Node.js:"
+          node --version
+          echo ""
+          echo "Build:"
+          echo "SUCCESS"
+          echo ""
+          echo "Pages:"
+          echo "https://outhebuilder.github.io/OUTheBuilderWBA/"
+          echo ""
+          echo "Features included:"
+          echo "✓ Existing OU The Builder UI"
+          echo "✓ Projects"
+          echo "✓ Files"
+          echo "✓ ZIP/file import"
+          echo "✓ Use this Folder"
+          echo "✓ Build section"
+          echo "✓ AI Chat foundation"
+          echo "✓ Image Flow foundation"
+          echo "✓ Google Drive foundation"
+          echo "✓ Settings foundation"
+          echo "✓ Node.js 24"
+          echo "✓ GitHub Pages deployment"
+          echo ""
