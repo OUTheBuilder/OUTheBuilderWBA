@@ -1,0 +1,3298 @@
+name: OU The Builder WBA - AI Chat v0.4.3
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js 24
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Create OU The Builder WBA
+        shell: bash
+        run: |
+          rm -rf client
+          mkdir -p client/src
+
+          cat > client/package.json <<'EOF'
+          {
+            "name": "ou-the-builder-wba",
+            "version": "0.4.3",
+            "private": true,
+            "type": "module",
+            "scripts": {
+              "dev": "vite",
+              "build": "vite build",
+              "preview": "vite preview"
+            },
+            "dependencies": {
+              "react": "^19.1.1",
+              "react-dom": "^19.1.1"
+            },
+            "devDependencies": {
+              "@vitejs/plugin-react": "^5.0.2",
+              "vite": "^7.1.7"
+            }
+          }
+          EOF
+
+          cat > client/index.html <<'EOF'
+          <!doctype html>
+          <html lang="en">
+            <head>
+              <meta charset="UTF-8" />
+              <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+              <meta name="theme-color" content="#050914" />
+              <title>OU The Builder</title>
+            </head>
+            <body>
+              <div id="root"></div>
+              <script type="module" src="/src/main.jsx"></script>
+            </body>
+          </html>
+          EOF
+
+          cat > client/vite.config.js <<'EOF'
+          import { defineConfig } from "vite";
+          import react from "@vitejs/plugin-react";
+
+          export default defineConfig({
+            plugins: [react()],
+            base: "/OUTheBuilderWBA/"
+          });
+          EOF
+
+          cat > client/src/main.jsx <<'EOF'
+          import React, { useEffect, useMemo, useRef, useState } from "react";
+          import { createRoot } from "react-dom/client";
+          import "./style.css";
+
+          const AGENTS = [
+            {
+              id: "ou-builder",
+              name: "OU Builder AI",
+              model: "openrouter/free",
+              description: "General OU The Builder assistant"
+            },
+            {
+              id: "coding",
+              name: "Coding Agent",
+              model: "openrouter/free",
+              description: "Coding and debugging"
+            },
+            {
+              id: "general",
+              name: "General AI",
+              model: "openrouter/free",
+              description: "General purpose assistant"
+            },
+            {
+              id: "research",
+              name: "Research Agent",
+              model: "openrouter/free",
+              description: "Research and analysis"
+            },
+            {
+              id: "free-auto",
+              name: "Free Auto Agent",
+              model: "openrouter/free",
+              description: "Automatic free model routing"
+            }
+          ];
+
+          const TEXT_EXTENSIONS = new Set([
+            "txt",
+            "md",
+            "markdown",
+            "json",
+            "js",
+            "jsx",
+            "ts",
+            "tsx",
+            "css",
+            "scss",
+            "less",
+            "html",
+            "htm",
+            "xml",
+            "svg",
+            "yaml",
+            "yml",
+            "csv",
+            "log",
+            "java",
+            "kt",
+            "kts",
+            "gradle",
+            "properties",
+            "py",
+            "rb",
+            "php",
+            "go",
+            "rs",
+            "c",
+            "cc",
+            "cpp",
+            "h",
+            "hpp",
+            "sql",
+            "sh",
+            "bash",
+            "bat",
+            "ps1",
+            "ini",
+            "conf",
+            "toml",
+            "env",
+            "gitignore",
+            "dockerfile"
+          ]);
+
+          function Icon({ name, size = 17 }) {
+            const common = {
+              width: size,
+              height: size,
+              viewBox: "0 0 24 24",
+              fill: "none",
+              stroke: "currentColor",
+              strokeWidth: "1.8",
+              strokeLinecap: "round",
+              strokeLinejoin: "round",
+              "aria-hidden": "true"
+            };
+
+            if (name === "home") {
+              return (
+                <svg {...common}>
+                  <path d="M3 10.8 12 3l9 7.8" />
+                  <path d="M5.5 9.5V21h13V9.5" />
+                  <path d="M9.5 21v-6h5v6" />
+                </svg>
+              );
+            }
+
+            if (name === "folder") {
+              return (
+                <svg {...common}>
+                  <path d="M3 6.5h7l2 2h9v10.5H3z" />
+                </svg>
+              );
+            }
+
+            if (name === "build") {
+              return (
+                <svg {...common}>
+                  <path d="m14.7 5.3 4 4" />
+                  <path d="m4 20 4.3-1 9.8-9.8a2.8 2.8 0 0 0-4-4L4.3 15z" />
+                  <path d="m12 8 4 4" />
+                </svg>
+              );
+            }
+
+            if (name === "chat") {
+              return (
+                <svg {...common}>
+                  <path d="M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v8a2.5 2.5 0 0 1-2.5 2.5H10l-5.5 4v-4.8A2.5 2.5 0 0 1 4 13.5z" />
+                  <path d="M8 8h8M8 11.5h5" />
+                </svg>
+              );
+            }
+
+            if (name === "flow") {
+              return (
+                <svg {...common}>
+                  <rect x="3" y="4" width="6" height="5" rx="1" />
+                  <rect x="15" y="4" width="6" height="5" rx="1" />
+                  <rect x="9" y="15" width="6" height="5" rx="1" />
+                  <path d="M9 6.5h6M18 9v3.5h-6M6 9v3.5h6" />
+                </svg>
+              );
+            }
+
+            if (name === "settings") {
+              return (
+                <svg {...common}>
+                  <circle cx="12" cy="12" r="3" />
+                  <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-1.8 1.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.1h-2.5V20a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1-1.8-1.8.1-.1A1.7 1.7 0 0 0 8 15a1.7 1.7 0 0 0-1.6-1H6v-2.5h.1A1.7 1.7 0 0 0 7.7 10a1.7 1.7 0 0 0-.3-1.9l-.1-.1 1.8-1.8.1.1a1.7 1.7 0 0 0 1.9.3 1.7 1.7 0 0 0 1-1.6V4h2.5v.1a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1 1.8 1.8-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.1V14h-.1a1.7 1.7 0 0 0-1.6 1z" />
+                </svg>
+              );
+            }
+
+            if (name === "copy") {
+              return (
+                <svg {...common}>
+                  <rect x="8" y="8" width="12" height="12" rx="2" />
+                  <path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2" />
+                </svg>
+              );
+            }
+
+            if (name === "upload") {
+              return (
+                <svg {...common}>
+                  <path d="M12 16V4" />
+                  <path d="m7.5 8.5 4.5-4.5 4.5 4.5" />
+                  <path d="M5 13.5V20h14v-6.5" />
+                </svg>
+              );
+            }
+
+            if (name === "send") {
+              return (
+                <svg {...common}>
+                  <path d="M21 3 10 14" />
+                  <path d="m21 3-7 18-4-7-7-4z" />
+                </svg>
+              );
+            }
+
+            if (name === "plus") {
+              return (
+                <svg {...common}>
+                  <path d="M12 5v14M5 12h14" />
+                </svg>
+              );
+            }
+
+            if (name === "spark") {
+              return (
+                <svg {...common}>
+                  <path d="m12 3 1.3 5.7L19 10l-5.7 1.3L12 17l-1.3-5.7L5 10l5.7-1.3z" />
+                  <path d="m19 16 .6 2.4L22 19l-2.4.6L19 22l-.6-2.4L16 19l2.4-.6z" />
+                </svg>
+              );
+            }
+
+            if (name === "paperclip") {
+              return (
+                <svg {...common}>
+                  <path d="m20.5 11.5-7.9 7.9a5 5 0 0 1-7.1-7.1l8.2-8.2a3.5 3.5 0 0 1 5 5l-8.2 8.2a2 2 0 1 1-2.8-2.8l7.7-7.7" />
+                </svg>
+              );
+            }
+
+            if (name === "trash") {
+              return (
+                <svg {...common}>
+                  <path d="M4 7h16M10 11v6M14 11v6" />
+                  <path d="m6 7 1 13h10l1-13M9 7V4h6v3" />
+                </svg>
+              );
+            }
+
+            if (name === "check") {
+              return (
+                <svg {...common}>
+                  <path d="m5 12 4 4L19 6" />
+                </svg>
+              );
+            }
+
+            if (name === "close") {
+              return (
+                <svg {...common}>
+                  <path d="m6 6 12 12M18 6 6 18" />
+                </svg>
+              );
+            }
+
+            return null;
+          }
+
+          function App() {
+            const [page, setPage] = useState("home");
+
+            const nav = [
+              ["home", "Home", "home"],
+              ["storage", "Project & Storage", "folder"],
+              ["build", "Build", "build"],
+              ["chat", "AI Chat", "chat"],
+              ["flow", "Image Flow", "flow"],
+              ["settings", "Settings", "settings"]
+            ];
+
+            return (
+              <div className="appShell">
+                <aside className="sidebar">
+                  <div className="brand">
+                    <div className="brandMark">OU</div>
+                    <div>
+                      <strong>OU The Builder</strong>
+                      <span>WEB APPLICATION</span>
+                    </div>
+                  </div>
+
+                  <nav className="nav">
+                    {nav.map(([id, label, icon]) => (
+                      <button
+                        key={id}
+                        className={`navItem ${page === id ? "active" : ""}`}
+                        onClick={() => setPage(id)}
+                      >
+                        <Icon name={icon} />
+                        <span>{label}</span>
+                      </button>
+                    ))}
+                  </nav>
+
+                  <div className="sidebarBottom">
+                    <div className="version">v0.4.3 • Foundation</div>
+                    <div className="onlineDot">
+                      <span />
+                      System Online
+                    </div>
+                  </div>
+                </aside>
+
+                <main className="mainArea">
+                  <header className="mobileHeader">
+                    <div className="brandMark small">OU</div>
+                    <strong>OU The Builder</strong>
+                  </header>
+
+                  {page === "home" && <Home setPage={setPage} />}
+                  {page === "storage" && <Storage />}
+                  {page === "build" && <Build />}
+                  {page === "chat" && <Chat />}
+                  {page === "flow" && <Flow />}
+                  {page === "settings" && <Settings />}
+                </main>
+
+                <div className="mobileNav">
+                  {nav.map(([id, label, icon]) => (
+                    <button
+                      key={id}
+                      className={page === id ? "active" : ""}
+                      onClick={() => setPage(id)}
+                      title={label}
+                    >
+                      <Icon name={icon} size={18} />
+                      <span>{label.split(" ")[0]}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            );
+          }
+
+          function PageTitle({ eyebrow, title, description }) {
+            return (
+              <div className="pageTitle">
+                <div className="eyebrow">{eyebrow}</div>
+                <h1>{title}</h1>
+                <p>{description}</p>
+              </div>
+            );
+          }
+
+          function Home({ setPage }) {
+            return (
+              <section className="page">
+                <PageTitle
+                  eyebrow="COMMAND CENTER"
+                  title="Welcome to OU The Builder"
+                  description="Your web-based application builder and remote build control center."
+                />
+
+                <div className="statusBanner">
+                  <div className="statusPulse" />
+                  <div>
+                    <strong>OU The Builder is Online</strong>
+                    <span>Foundation services are available.</span>
+                  </div>
+                  <div className="bannerVersion">v0.4.3</div>
+                </div>
+
+                <div className="dashboardGrid">
+                  <MonitorCard
+                    title="AI Builder"
+                    icon="spark"
+                    status="READY"
+                    value="AI Chat Control"
+                    detail="Use natural language to control builder functions."
+                    onClick={() => setPage("chat")}
+                  />
+
+                  <MonitorCard
+                    title="Project & Storage"
+                    icon="folder"
+                    status="READY"
+                    value="Local Project Workspace"
+                    detail="Projects, files and cloud storage integration."
+                    onClick={() => setPage("storage")}
+                  />
+
+                  <MonitorCard
+                    title="Build System"
+                    icon="build"
+                    status="READY"
+                    value="Remote Build"
+                    detail="Prepare projects for remote Android APK builds."
+                    onClick={() => setPage("build")}
+                  />
+
+                  <MonitorCard
+                    title="Image Flow"
+                    icon="flow"
+                    status="PREVIEW"
+                    value="Visual App Flow"
+                    detail="Visualize connected screens and navigation."
+                    onClick={() => setPage("flow")}
+                  />
+                </div>
+
+                <div className="twoColumn">
+                  <div className="panel">
+                    <div className="panelHeader">
+                      <div>
+                        <span className="panelEyebrow">SYSTEM STATUS</span>
+                        <h2>Service Monitor</h2>
+                      </div>
+                      <span className="greenBadge">ONLINE</span>
+                    </div>
+
+                    <div className="statusRows">
+                      <InfoRow label="WBA Frontend" value="Online" ok />
+                      <InfoRow label="AI Service" value="Ready" ok />
+                      <InfoRow label="Project Storage" value="Ready" ok />
+                      <InfoRow label="Google Drive" value="Not Connected" />
+                      <InfoRow label="Build Service" value="Ready" ok />
+                      <InfoRow label="GitHub Actions" value="Available" ok />
+                    </div>
+                  </div>
+
+                  <div className="panel">
+                    <div className="panelHeader">
+                      <div>
+                        <span className="panelEyebrow">CURRENT PROJECT</span>
+                        <h2>No Project Selected</h2>
+                      </div>
+                    </div>
+
+                    <div className="emptyProject">
+                      <div className="emptyIcon">
+                        <Icon name="folder" size={25} />
+                      </div>
+                      <p>Select or create a project to begin.</p>
+                      <button
+                        className="primaryButton"
+                        onClick={() => setPage("storage")}
+                      >
+                        Open Project & Storage
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="panel">
+                  <div className="panelHeader">
+                    <div>
+                      <span className="panelEyebrow">QUICK ACTIONS</span>
+                      <h2>Start Building</h2>
+                    </div>
+                  </div>
+
+                  <div className="quickActions">
+                    <button onClick={() => setPage("storage")}>
+                      <Icon name="folder" />
+                      <span>
+                        <strong>Manage Project</strong>
+                        <small>Projects & files</small>
+                      </span>
+                    </button>
+
+                    <button onClick={() => setPage("chat")}>
+                      <Icon name="chat" />
+                      <span>
+                        <strong>Open AI Chat</strong>
+                        <small>Talk to your agent</small>
+                      </span>
+                    </button>
+
+                    <button onClick={() => setPage("build")}>
+                      <Icon name="build" />
+                      <span>
+                        <strong>Build Project</strong>
+                        <small>Prepare a remote build</small>
+                      </span>
+                    </button>
+
+                    <button onClick={() => setPage("flow")}>
+                      <Icon name="flow" />
+                      <span>
+                        <strong>Image Flow</strong>
+                        <small>Visualize the app</small>
+                      </span>
+                    </button>
+                  </div>
+                </div>
+              </section>
+            );
+          }
+
+          function MonitorCard({ title, icon, status, value, detail, onClick }) {
+            return (
+              <button className="monitorCard" onClick={onClick}>
+                <div className="monitorTop">
+                  <div className="monitorIcon">
+                    <Icon name={icon} />
+                  </div>
+                  <span>{status}</span>
+                </div>
+                <strong>{title}</strong>
+                <h3>{value}</h3>
+                <p>{detail}</p>
+              </button>
+            );
+          }
+
+          function InfoRow({ label, value, ok = false }) {
+            return (
+              <div className="infoRow">
+                <span>{label}</span>
+                <span className={ok ? "rowOk" : "rowMuted"}>
+                  {ok && <i />}
+                  {value}
+                </span>
+              </div>
+            );
+          }
+
+          function Storage() {
+            const [tab, setTab] = useState("projects");
+
+            return (
+              <section className="page">
+                <PageTitle
+                  eyebrow="PROJECT & STORAGE"
+                  title="Project & Storage"
+                  description="Manage projects, files and connected cloud storage from one place."
+                />
+
+                <div className="tabs">
+                  <button
+                    className={tab === "projects" ? "active" : ""}
+                    onClick={() => setTab("projects")}
+                  >
+                    <Icon name="folder" />
+                    Projects
+                  </button>
+                  <button
+                    className={tab === "files" ? "active" : ""}
+                    onClick={() => setTab("files")}
+                  >
+                    <Icon name="paperclip" />
+                    Files
+                  </button>
+                  <button
+                    className={tab === "drive" ? "active" : ""}
+                    onClick={() => setTab("drive")}
+                  >
+                    Google Drive
+                  </button>
+                </div>
+
+                {tab === "projects" && (
+                  <div className="panel">
+                    <div className="panelHeader">
+                      <div>
+                        <span className="panelEyebrow">PROJECTS</span>
+                        <h2>Your Projects</h2>
+                      </div>
+                      <button className="primaryButton">
+                        <Icon name="plus" />
+                        New Project
+                      </button>
+                    </div>
+
+                    <div className="emptyLarge">
+                      <div className="emptyIcon large">
+                        <Icon name="folder" size={30} />
+                      </div>
+                      <h3>No projects yet</h3>
+                      <p>Create a project or import an existing project package.</p>
+                      <button className="secondaryButton">
+                        Import Project
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {tab === "files" && (
+                  <div className="panel">
+                    <div className="panelHeader">
+                      <div>
+                        <span className="panelEyebrow">FILES</span>
+                        <h2>Project Files</h2>
+                      </div>
+                      <button className="secondaryButton">
+                        <Icon name="upload" />
+                        Upload Files
+                      </button>
+                    </div>
+
+                    <div className="fileInfo">
+                      <div className="fileType">ZIP</div>
+                      <div>
+                        <strong>Project import</strong>
+                        <p>
+                          ZIP packages and common project resources can be
+                          imported into the workspace.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="fileInfo">
+                      <div className="fileType">ANY</div>
+                      <div>
+                        <strong>Resource manager</strong>
+                        <p>
+                          Files are intended to be available to builder features
+                          that require them.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {tab === "drive" && (
+                  <div className="panel">
+                    <div className="panelHeader">
+                      <div>
+                        <span className="panelEyebrow">GOOGLE DRIVE</span>
+                        <h2>Cloud Storage</h2>
+                      </div>
+                      <span className="yellowBadge">NOT CONNECTED</span>
+                    </div>
+
+                    <div className="emptyLarge">
+                      <div className="driveLogo">G</div>
+                      <h3>Connect Google Drive</h3>
+                      <p>
+                        Google Drive can become an optional storage provider for
+                        projects and reusable resources.
+                      </p>
+                      <button className="primaryButton">
+                        Connect Google Drive
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </section>
+            );
+          }
+
+          function Build() {
+            const [target, setTarget] = useState("Android APK");
+            const [building, setBuilding] = useState(false);
+            const [logs, setLogs] = useState([
+              "BUILD CONSOLE",
+              "Waiting for a build request..."
+            ]);
+
+            function runBuild() {
+              if (building) return;
+
+              setBuilding(true);
+              setLogs([
+                "BUILD CONSOLE",
+                "✓ Project detected",
+                "✓ Project configuration checked",
+                "✓ Resources checked",
+                "✓ Build environment prepared",
+                "→ Running build process..."
+              ]);
+
+              const steps = [
+                "→ Preparing build workspace",
+                "→ Resolving dependencies",
+                "→ Compiling source",
+                "→ Packaging application",
+                "→ Verifying output",
+                "BUILD SUCCESSFUL"
+              ];
+
+              steps.forEach((step, index) => {
+                setTimeout(() => {
+                  setLogs((current) => [...current, step]);
+
+                  if (step === "BUILD SUCCESSFUL") {
+                    setBuilding(false);
+                  }
+                }, 700 * (index + 1));
+              });
+            }
+
+            return (
+              <section className="page">
+                <PageTitle
+                  eyebrow="BUILD"
+                  title="Build & Compile"
+                  description="Prepare and execute a remote application build."
+                />
+
+                <div className="buildGrid">
+                  <div className="panel">
+                    <div className="panelHeader">
+                      <div>
+                        <span className="panelEyebrow">TARGET</span>
+                        <h2>Build Configuration</h2>
+                      </div>
+                    </div>
+
+                    <label className="field">
+                      <span>Target</span>
+                      <select
+                        value={target}
+                        onChange={(e) => setTarget(e.target.value)}
+                      >
+                        <option>Android APK</option>
+                        <option>Web App</option>
+                        <option>Hybrid App</option>
+                      </select>
+                    </label>
+
+                    <label className="field">
+                      <span>Project</span>
+                      <input placeholder="No project selected" disabled />
+                    </label>
+
+                    <label className="field">
+                      <span>Build Mode</span>
+                      <select>
+                        <option>Debug</option>
+                        <option>Release</option>
+                      </select>
+                    </label>
+
+                    <div className="compatibility">
+                      <span className="greenBadge">READY</span>
+                      <p>
+                        Foundation build interface is ready for backend build
+                        integration.
+                      </p>
+                    </div>
+
+                    <button
+                      className="primaryButton buildButton"
+                      onClick={runBuild}
+                      disabled={building}
+                    >
+                      <Icon name="build" />
+                      {building ? "Building..." : "Run Build"}
+                    </button>
+                  </div>
+
+                  <div className="panel">
+                    <div className="panelHeader">
+                      <div>
+                        <span className="panelEyebrow">BUILD CONSOLE</span>
+                        <h2>Build Output</h2>
+                      </div>
+                      <span className="greenBadge">
+                        {building ? "RUNNING" : "READY"}
+                      </span>
+                    </div>
+
+                    <div className="console">
+                      {logs.map((line, index) => (
+                        <div
+                          key={`${line}-${index}`}
+                          className={
+                            line.includes("SUCCESS")
+                              ? "consoleSuccess"
+                              : line.startsWith("✓")
+                                ? "consoleOk"
+                                : ""
+                          }
+                        >
+                          {line}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </section>
+            );
+          }
+
+          function Chat() {
+            const [agentId, setAgentId] = useState(
+              localStorage.getItem("ou_selected_agent") || "ou-builder"
+            );
+
+            const [messages, setMessages] = useState(() => {
+              try {
+                return JSON.parse(
+                  localStorage.getItem(
+                    `ou_chat_${
+                      localStorage.getItem("ou_selected_agent") || "ou-builder"
+                    }`
+                  ) || "[]"
+                );
+              } catch {
+                return [];
+              }
+            });
+
+            const [input, setInput] = useState("");
+            const [loading, setLoading] = useState(false);
+            const [showAgents, setShowAgents] = useState(false);
+            const [attachments, setAttachments] = useState([]);
+            const [copiedId, setCopiedId] = useState("");
+            const fileInputRef = useRef(null);
+            const agentMenuRef = useRef(null);
+
+            const agent = useMemo(
+              () =>
+                AGENTS.find((item) => item.id === agentId) || AGENTS[0],
+              [agentId]
+            );
+
+            useEffect(() => {
+              localStorage.setItem(
+                `ou_chat_${agentId}`,
+                JSON.stringify(messages)
+              );
+            }, [messages, agentId]);
+
+            useEffect(() => {
+              function closeMenu(event) {
+                if (
+                  agentMenuRef.current &&
+                  !agentMenuRef.current.contains(event.target)
+                ) {
+                  setShowAgents(false);
+                }
+              }
+
+              document.addEventListener("mousedown", closeMenu);
+              return () =>
+                document.removeEventListener("mousedown", closeMenu);
+            }, []);
+
+            function changeAgent(id) {
+              setAgentId(id);
+              localStorage.setItem("ou_selected_agent", id);
+
+              try {
+                setMessages(
+                  JSON.parse(
+                    localStorage.getItem(`ou_chat_${id}`) || "[]"
+                  )
+                );
+              } catch {
+                setMessages([]);
+              }
+
+              setShowAgents(false);
+            }
+
+            function newChat() {
+              if (loading) return;
+
+              const shouldClear = window.confirm(
+                "Start a new chat with this agent?"
+              );
+
+              if (!shouldClear) return;
+
+              setMessages([]);
+              setInput("");
+              setAttachments([]);
+              localStorage.removeItem(`ou_chat_${agentId}`);
+            }
+
+            async function copyText(text, id) {
+              try {
+                if (navigator.clipboard?.writeText) {
+                  await navigator.clipboard.writeText(text);
+                } else {
+                  const area = document.createElement("textarea");
+                  area.value = text;
+                  document.body.appendChild(area);
+                  area.select();
+                  document.execCommand("copy");
+                  area.remove();
+                }
+
+                setCopiedId(id);
+                setTimeout(() => setCopiedId(""), 1400);
+              } catch {
+                setCopiedId("");
+              }
+            }
+
+            function conversationText() {
+              if (!messages.length) {
+                return "No messages in this conversation.";
+              }
+
+              return messages
+                .map((message) => {
+                  const role =
+                    message.role === "user" ? "You" : "OU Builder AI";
+                  return `${role}:\n${message.content}`;
+                })
+                .join("\n\n--------------------\n\n");
+            }
+
+            function copyConversation() {
+              copyText(conversationText(), "conversation");
+            }
+
+            function extensionOf(name) {
+              const parts = name.toLowerCase().split(".");
+              return parts.length > 1 ? parts.pop() : "";
+            }
+
+            function readAsDataURL(file) {
+              return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = () => reject(reader.error);
+
+                reader.readAsDataURL(file);
+              });
+            }
+
+            async function prepareFile(file) {
+              const extension = extensionOf(file.name);
+
+              if (
+                file.type.startsWith("text/") ||
+                TEXT_EXTENSIONS.has(extension)
+              ) {
+                try {
+                  const maxChars = 120000;
+                  const text = await file
+                    .slice(0, maxChars * 4)
+                    .text();
+
+                  return {
+                    id: `${file.name}-${file.lastModified}-${Math.random()}`,
+                    name: file.name,
+                    size: file.size,
+                    type: file.type || "text/plain",
+                    kind: "text",
+                    content: text.slice(0, maxChars)
+                  };
+                } catch {
+                  return {
+                    id: `${file.name}-${file.lastModified}-${Math.random()}`,
+                    name: file.name,
+                    size: file.size,
+                    type: file.type || "unknown",
+                    kind: "other"
+                  };
+                }
+              }
+
+              if (file.type.startsWith("image/") && file.size <= 8 * 1024 * 1024) {
+                try {
+                  const dataUrl = await readAsDataURL(file);
+
+                  return {
+                    id: `${file.name}-${file.lastModified}-${Math.random()}`,
+                    name: file.name,
+                    size: file.size,
+                    type: file.type,
+                    kind: "image",
+                    dataUrl
+                  };
+                } catch {
+                  return {
+                    id: `${file.name}-${file.lastModified}-${Math.random()}`,
+                    name: file.name,
+                    size: file.size,
+                    type: file.type,
+                    kind: "other"
+                  };
+                }
+              }
+
+              return {
+                id: `${file.name}-${file.lastModified}-${Math.random()}`,
+                name: file.name,
+                size: file.size,
+                type: file.type || "application/octet-stream",
+                kind: "other"
+              };
+            }
+
+            async function handleFiles(event) {
+              const files = Array.from(event.target.files || []);
+
+              if (!files.length) return;
+
+              const prepared = [];
+
+              for (const file of files) {
+                prepared.push(await prepareFile(file));
+              }
+
+              setAttachments((current) => [...current, ...prepared]);
+
+              event.target.value = "";
+            }
+
+            function removeAttachment(id) {
+              setAttachments((current) =>
+                current.filter((item) => item.id !== id)
+              );
+            }
+
+            function attachmentLabel(item) {
+              if (item.kind === "text") return "Readable";
+              if (item.kind === "image") return "Image";
+              return "File";
+            }
+
+            function makeApiContent(text, currentAttachments) {
+              const parts = [];
+
+              if (text.trim()) {
+                parts.push({
+                  type: "text",
+                  text
+                });
+              }
+
+              for (const attachment of currentAttachments) {
+                if (attachment.kind === "text") {
+                  parts.push({
+                    type: "text",
+                    text:
+                      `\n\n[Attached file: ${attachment.name}]\n` +
+                      attachment.content
+                  });
+                } else if (attachment.kind === "image") {
+                  parts.push({
+                    type: "text",
+                    text: `\n\n[Attached image: ${attachment.name}]`
+                  });
+
+                  parts.push({
+                    type: "image_url",
+                    image_url: {
+                      url: attachment.dataUrl
+                    }
+                  });
+                } else {
+                  parts.push({
+                    type: "text",
+                    text:
+                      `\n\n[Attached file: ${attachment.name}]\n` +
+                      `Type: ${attachment.type || "unknown"}\n` +
+                      "This file was selected in the browser. Direct parsing " +
+                      "depends on the selected model/provider or future backend " +
+                      "file-processing support."
+                  });
+                }
+              }
+
+              if (!parts.length) {
+                return "";
+              }
+
+              if (
+                parts.length === 1 &&
+                parts[0].type === "text"
+              ) {
+                return parts[0].text;
+              }
+
+              return parts;
+            }
+
+            async function sendMessage() {
+              const text = input.trim();
+
+              if (!text && attachments.length === 0) return;
+              if (loading) return;
+
+              const currentAttachments = [...attachments];
+
+              const displayParts = [];
+
+              if (text) {
+                displayParts.push(text);
+              }
+
+              if (currentAttachments.length) {
+                displayParts.push(
+                  currentAttachments
+                    .map(
+                      (item) =>
+                        `[Attached: ${item.name} • ${attachmentLabel(item)}]`
+                    )
+                    .join("\n")
+                );
+              }
+
+              const displayText = displayParts.join("\n\n");
+
+              const userMessage = {
+                role: "user",
+                content: displayText
+              };
+
+              const nextMessages = [...messages, userMessage];
+
+              setMessages(nextMessages);
+              setInput("");
+              setAttachments([]);
+              setLoading(true);
+
+              const apiKey =
+                localStorage.getItem("ou_openrouter_key") || "";
+
+              if (!apiKey) {
+                setTimeout(() => {
+                  setMessages((current) => [
+                    ...current,
+                    {
+                      role: "assistant",
+                      content:
+                        `I received your message${currentAttachments.length ? " and attachment(s)" : ""}.\n\n` +
+                        "The OpenRouter API key is not configured yet. " +
+                        "Open Settings → Connections → AI Agents to add your API key."
+                    }
+                  ]);
+
+                  setLoading(false);
+                }, 500);
+
+                return;
+              }
+
+              try {
+                const apiMessages = nextMessages
+                  .slice(-20)
+                  .map((message) => ({
+                    role: message.role,
+                    content: message.content
+                  }));
+
+                const lastIndex = apiMessages.length - 1;
+
+                if (lastIndex >= 0 && apiMessages[lastIndex].role === "user") {
+                  apiMessages[lastIndex] = {
+                    role: "user",
+                    content: makeApiContent(text, currentAttachments)
+                  };
+                }
+
+                const systemMessage = {
+                  role: "system",
+                  content:
+                    `You are ${agent.name}, an AI agent inside OU The Builder. ` +
+                    "Help the user operate, design, debug and build projects. " +
+                    "Be practical and concise. When files are provided, use their " +
+                    "contents when available and clearly state when a file type " +
+                    "cannot be directly parsed by the current model."
+                };
+
+                const response = await fetch(
+                  "https://openrouter.ai/api/v1/chat/completions",
+                  {
+                    method: "POST",
+                    headers: {
+                      Authorization: `Bearer ${apiKey}`,
+                      "Content-Type": "application/json",
+                      "HTTP-Referer": window.location.origin,
+                      "X-Title": "OU The Builder"
+                    },
+                    body: JSON.stringify({
+                      model: agent.model,
+                      messages: [systemMessage, ...apiMessages]
+                    })
+                  }
+                );
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                  throw new Error(
+                    data?.error?.message ||
+                      `OpenRouter request failed (${response.status})`
+                  );
+                }
+
+                const answer =
+                  data?.choices?.[0]?.message?.content ||
+                  "The agent returned an empty response.";
+
+                setMessages((current) => [
+                  ...current,
+                  {
+                    role: "assistant",
+                    content:
+                      typeof answer === "string"
+                        ? answer
+                        : JSON.stringify(answer, null, 2)
+                  }
+                ]);
+              } catch (error) {
+                setMessages((current) => [
+                  ...current,
+                  {
+                    role: "assistant",
+                    content:
+                      "The agent request failed.\n\n" +
+                      String(error?.message || error)
+                  }
+                ]);
+              } finally {
+                setLoading(false);
+              }
+            }
+
+            function handleKeyDown(event) {
+              if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault();
+                sendMessage();
+              }
+            }
+
+            return (
+              <section className="chatPage">
+                <div className="chatHeader">
+                  <div>
+                    <div className="eyebrow">AI BUILDER</div>
+                    <h1>AI Chat</h1>
+                    <p>
+                      Use the selected agent as the central control interface.
+                    </p>
+                  </div>
+
+                  <button
+                    className="copyConversationButton"
+                    onClick={copyConversation}
+                    title="Copy entire conversation"
+                    aria-label="Copy entire conversation"
+                  >
+                    <Icon name={copiedId === "conversation" ? "check" : "copy"} />
+                    <span>
+                      {copiedId === "conversation"
+                        ? "Copied"
+                        : "Copy Conversation"}
+                    </span>
+                  </button>
+                </div>
+
+                <div className="sourceBar">
+                  <div className="sourceIcon">
+                    <Icon name="spark" />
+                  </div>
+
+                  <div>
+                    <strong>Agent Control</strong>
+                    <span>
+                      The composer controls below let you select the agent,
+                      attach files and start a new chat.
+                    </span>
+                  </div>
+                </div>
+
+                <div className="messages">
+                  {messages.length === 0 && (
+                    <div className="chatEmpty">
+                      <div className="chatEmptyIcon">
+                        <Icon name="spark" size={30} />
+                      </div>
+                      <h2>Start a conversation</h2>
+                      <p>
+                        Ask the builder to create, inspect, explain, debug or
+                        prepare a project.
+                      </p>
+
+                      <div className="suggestionGrid">
+                        <button
+                          onClick={() =>
+                            setInput("Create a new Android project.")
+                          }
+                        >
+                          Create a project
+                        </button>
+
+                        <button
+                          onClick={() =>
+                            setInput("Show me the application flow.")
+                          }
+                        >
+                          Show app flow
+                        </button>
+
+                        <button
+                          onClick={() =>
+                            setInput("Check this project for build problems.")
+                          }
+                        >
+                          Check build
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {messages.map((message, index) => {
+                    const messageId = `message-${index}`;
+                    const isUser = message.role === "user";
+
+                    return (
+                      <div
+                        className={`messageRow ${
+                          isUser ? "userRow" : "assistantRow"
+                        }`}
+                        key={messageId}
+                      >
+                        <div
+                          className={`messageBubble ${
+                            isUser ? "userBubble" : "assistantBubble"
+                          }`}
+                        >
+                          <div className="messageRole">
+                            {isUser ? "You" : agent.name}
+                          </div>
+
+                          <div className="messageText">
+                            {message.content}
+                          </div>
+
+                          <button
+                            className="messageCopy"
+                            onClick={() =>
+                              copyText(message.content, messageId)
+                            }
+                            title="Copy this message"
+                            aria-label="Copy this message"
+                          >
+                            <Icon
+                              name={
+                                copiedId === messageId
+                                  ? "check"
+                                  : "copy"
+                              }
+                              size={15}
+                            />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  {loading && (
+                    <div className="messageRow assistantRow">
+                      <div className="messageBubble assistantBubble loadingBubble">
+                        <div className="messageRole">{agent.name}</div>
+                        <div className="typing">
+                          <span />
+                          <span />
+                          <span />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="chatComposer">
+                  {attachments.length > 0 && (
+                    <div className="attachmentTray">
+                      {attachments.map((attachment) => (
+                        <div
+                          className="attachmentChip"
+                          key={attachment.id}
+                          title={attachment.name}
+                        >
+                          <Icon name="paperclip" size={14} />
+                          <div>
+                            <strong>{attachment.name}</strong>
+                            <span>{attachmentLabel(attachment)}</span>
+                          </div>
+                          <button
+                            onClick={() =>
+                              removeAttachment(attachment.id)
+                            }
+                            title={`Remove ${attachment.name}`}
+                            aria-label={`Remove ${attachment.name}`}
+                          >
+                            <Icon name="close" size={13} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="composerBox">
+                    <textarea
+                      value={input}
+                      onChange={(event) => setInput(event.target.value)}
+                      onKeyDown={handleKeyDown}
+                      placeholder={`Message ${agent.name}...`}
+                      disabled={loading}
+                      rows={3}
+                    />
+
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      multiple
+                      accept="*/*"
+                      className="hiddenFileInput"
+                      onChange={handleFiles}
+                    />
+
+                    <div className="composerControls">
+                      <button
+                        className="composerIconButton"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={loading}
+                        title="Upload files"
+                        aria-label="Upload files"
+                      >
+                        <Icon name="paperclip" />
+                      </button>
+
+                      <div className="agentControl" ref={agentMenuRef}>
+                        <button
+                          className="composerAgentButton"
+                          onClick={() => setShowAgents((value) => !value)}
+                          disabled={loading}
+                          title={`Select agent: ${agent.name}`}
+                          aria-label={`Select agent: ${agent.name}`}
+                        >
+                          <Icon name="spark" size={16} />
+                          <span>{agent.name}</span>
+                        </button>
+
+                        {showAgents && (
+                          <div className="agentMenu composerAgentMenu">
+                            <div className="agentMenuTitle">
+                              SELECT AGENT
+                            </div>
+
+                            {AGENTS.map((item) => (
+                              <button
+                                key={item.id}
+                                className={
+                                  item.id === agentId ? "selected" : ""
+                                }
+                                onClick={() => changeAgent(item.id)}
+                              >
+                                <div className="agentMenuIcon">
+                                  <Icon name="spark" size={15} />
+                                </div>
+                                <div>
+                                  <strong>{item.name}</strong>
+                                  <span>{item.description}</span>
+                                </div>
+
+                                {item.id === agentId && (
+                                  <Icon name="check" size={15} />
+                                )}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      <button
+                        className="composerIconButton"
+                        onClick={newChat}
+                        disabled={loading}
+                        title="New chat"
+                        aria-label="New chat"
+                      >
+                        <Icon name="plus" />
+                      </button>
+
+                      <button
+                        className="sendButton"
+                        onClick={sendMessage}
+                        disabled={
+                          loading ||
+                          (!input.trim() && attachments.length === 0)
+                        }
+                        title="Send message"
+                        aria-label="Send message"
+                      >
+                        <Icon name="send" size={18} />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="composerHint">
+                    <span>
+                      Enter to send • Shift + Enter for a new line
+                    </span>
+                    <span>
+                      Upload files the selected agent/model can read
+                    </span>
+                  </div>
+                </div>
+              </section>
+            );
+          }
+
+          function Flow() {
+            return (
+              <section className="page">
+                <PageTitle
+                  eyebrow="IMAGE FLOW"
+                  title="Application Flow"
+                  description="Preview how screens, actions and navigation connect."
+                />
+
+                <div className="panel flowPanel">
+                  <div className="panelHeader">
+                    <div>
+                      <span className="panelEyebrow">VISUAL PREVIEW</span>
+                      <h2>Code → Actual View Flow</h2>
+                    </div>
+                    <span className="yellowBadge">PREVIEW</span>
+                  </div>
+
+                  <div className="flowCanvas">
+                    <FlowNode title="Home" detail="Main screen" />
+                    <div className="flowArrow">↓</div>
+                    <div className="flowSplit">
+                      <FlowNode title="Projects" detail="Project manager" />
+                      <FlowNode title="AI Chat" detail="AI control" />
+                      <FlowNode title="Build" detail="Compile / APK" />
+                    </div>
+                    <div className="flowArrow">↓</div>
+                    <FlowNode title="Application Preview" detail="Connected app flow" />
+                  </div>
+                </div>
+              </section>
+            );
+          }
+
+          function FlowNode({ title, detail }) {
+            return (
+              <div className="flowNode">
+                <div className="flowNodeIcon">
+                  <Icon name="flow" size={18} />
+                </div>
+                <strong>{title}</strong>
+                <span>{detail}</span>
+              </div>
+            );
+          }
+
+          function Settings() {
+            const [key, setKey] = useState(
+              localStorage.getItem("ou_openrouter_key") || ""
+            );
+
+            function saveKey() {
+              localStorage.setItem("ou_openrouter_key", key.trim());
+              window.alert("OpenRouter API key saved in this browser.");
+            }
+
+            return (
+              <section className="page">
+                <PageTitle
+                  eyebrow="SETTINGS"
+                  title="Connections & Configuration"
+                  description="Configure AI agents and future storage/build integrations."
+                />
+
+                <div className="settingsGrid">
+                  <div className="panel">
+                    <div className="panelHeader">
+                      <div>
+                        <span className="panelEyebrow">AI AGENTS</span>
+                        <h2>Agent Connections</h2>
+                      </div>
+                    </div>
+
+                    {AGENTS.map((item) => (
+                      <div className="connection" key={item.id}>
+                        <div className="connectionIcon">
+                          <Icon name="spark" />
+                        </div>
+                        <div>
+                          <strong>{item.name}</strong>
+                          <p>{item.description}</p>
+                        </div>
+                        <span className="greenBadge">READY</span>
+                      </div>
+                    ))}
+
+                    <button className="secondaryButton fullButton">
+                      <Icon name="plus" />
+                      Add Agent
+                    </button>
+                  </div>
+
+                  <div className="panel">
+                    <div className="panelHeader">
+                      <div>
+                        <span className="panelEyebrow">OPENROUTER</span>
+                        <h2>AI API Key</h2>
+                      </div>
+                    </div>
+
+                    <label className="field">
+                      <span>API Key</span>
+                      <input
+                        type="password"
+                        value={key}
+                        onChange={(event) => setKey(event.target.value)}
+                        placeholder="sk-or-..."
+                      />
+                    </label>
+
+                    <p className="securityNote">
+                      Prototype mode stores this key in this browser's
+                      localStorage. A production version should move secrets
+                      behind a secure backend.
+                    </p>
+
+                    <button
+                      className="primaryButton fullButton"
+                      onClick={saveKey}
+                    >
+                      Save API Key
+                    </button>
+                  </div>
+
+                  <div className="panel">
+                    <div className="panelHeader">
+                      <div>
+                        <span className="panelEyebrow">STORAGE</span>
+                        <h2>Storage Providers</h2>
+                      </div>
+                    </div>
+
+                    <Connection
+                      name="Google Drive"
+                      detail="Project and resource storage"
+                      status="Not Connected"
+                    />
+
+                    <Connection
+                      name="Object Storage"
+                      detail="Future R2 / cloud storage provider"
+                      status="Planned"
+                    />
+                  </div>
+
+                  <div className="panel">
+                    <div className="panelHeader">
+                      <div>
+                        <span className="panelEyebrow">BUILD SYSTEM</span>
+                        <h2>Remote Build</h2>
+                      </div>
+                    </div>
+
+                    <Connection
+                      name="GitHub Actions"
+                      detail="Remote build executor"
+                      status="Available"
+                    />
+
+                    <Connection
+                      name="Android SDK"
+                      detail="Remote APK compilation environment"
+                      status="Ready"
+                    />
+                  </div>
+                </div>
+              </section>
+            );
+          }
+
+          function Connection({ name, detail, status }) {
+            return (
+              <div className="connection">
+                <div className="connectionIcon">
+                  <Icon name="settings" />
+                </div>
+                <div>
+                  <strong>{name}</strong>
+                  <p>{detail}</p>
+                </div>
+                <span
+                  className={
+                    status === "Available" || status === "Ready"
+                      ? "greenBadge"
+                      : "yellowBadge"
+                  }
+                >
+                  {status}
+                </span>
+              </div>
+            );
+          }
+
+          createRoot(document.getElementById("root")).render(<App />);
+          EOF
+
+          cat > client/src/style.css <<'EOF'
+          :root {
+            font-family:
+              Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+              "Segoe UI", sans-serif;
+            color: #eef4ff;
+            background: #050914;
+            font-synthesis: none;
+            text-rendering: optimizeLegibility;
+          }
+
+          * {
+            box-sizing: border-box;
+          }
+
+          html,
+          body,
+          #root {
+            margin: 0;
+            min-height: 100%;
+            width: 100%;
+          }
+
+          body {
+            min-height: 100vh;
+            background:
+              radial-gradient(circle at 75% 0%, rgba(43, 75, 150, 0.16), transparent 32%),
+              #050914;
+          }
+
+          button,
+          input,
+          textarea,
+          select {
+            font: inherit;
+          }
+
+          button {
+            cursor: pointer;
+          }
+
+          button:disabled {
+            cursor: not-allowed;
+            opacity: 0.55;
+          }
+
+          .appShell {
+            min-height: 100vh;
+            display: flex;
+          }
+
+          .sidebar {
+            width: 255px;
+            min-height: 100vh;
+            position: fixed;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            padding: 22px 14px;
+            border-right: 1px solid #18233b;
+            background: rgba(5, 9, 20, 0.96);
+            display: flex;
+            flex-direction: column;
+            z-index: 20;
+          }
+
+          .brand {
+            display: flex;
+            gap: 11px;
+            align-items: center;
+            padding: 4px 8px 26px;
+          }
+
+          .brandMark {
+            width: 42px;
+            height: 42px;
+            border-radius: 12px;
+            display: grid;
+            place-items: center;
+            font-weight: 900;
+            letter-spacing: -1px;
+            background: linear-gradient(135deg, #1767ff, #8b36ff);
+            box-shadow: 0 0 28px rgba(47, 107, 255, 0.32);
+          }
+
+          .brandMark.small {
+            width: 34px;
+            height: 34px;
+            border-radius: 9px;
+            font-size: 12px;
+          }
+
+          .brand strong {
+            display: block;
+            font-size: 14px;
+          }
+
+          .brand span {
+            display: block;
+            margin-top: 3px;
+            color: #72809c;
+            font-size: 9px;
+            letter-spacing: 1.3px;
+          }
+
+          .nav {
+            display: grid;
+            gap: 5px;
+          }
+
+          .navItem {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            width: 100%;
+            padding: 11px 12px;
+            border: 1px solid transparent;
+            border-radius: 10px;
+            color: #8e9bb7;
+            background: transparent;
+            text-align: left;
+          }
+
+          .navItem:hover {
+            color: #e9f1ff;
+            background: #0b1324;
+          }
+
+          .navItem.active {
+            color: #fff;
+            background: linear-gradient(
+              90deg,
+              rgba(27, 91, 255, 0.18),
+              rgba(103, 58, 255, 0.1)
+            );
+            border-color: #21365e;
+          }
+
+          .sidebarBottom {
+            margin-top: auto;
+            padding: 14px 9px 4px;
+          }
+
+          .version {
+            color: #56627b;
+            font-size: 11px;
+            margin-bottom: 12px;
+          }
+
+          .onlineDot {
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            color: #7f8da9;
+            font-size: 11px;
+          }
+
+          .onlineDot span {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: #22d889;
+            box-shadow: 0 0 10px rgba(34, 216, 137, 0.7);
+          }
+
+          .mainArea {
+            width: calc(100% - 255px);
+            margin-left: 255px;
+            min-height: 100vh;
+          }
+
+          .mobileHeader,
+          .mobileNav {
+            display: none;
+          }
+
+          .page {
+            width: min(1250px, 100%);
+            margin: 0 auto;
+            padding: 34px 34px 55px;
+          }
+
+          .pageTitle {
+            margin-bottom: 24px;
+          }
+
+          .eyebrow,
+          .panelEyebrow {
+            color: #6f9cff;
+            font-size: 10px;
+            font-weight: 800;
+            letter-spacing: 1.7px;
+          }
+
+          .pageTitle h1,
+          .chatHeader h1 {
+            margin: 5px 0 7px;
+            font-size: clamp(25px, 4vw, 36px);
+            letter-spacing: -1px;
+          }
+
+          .pageTitle p,
+          .chatHeader p {
+            margin: 0;
+            color: #71809d;
+            font-size: 13px;
+          }
+
+          .statusBanner {
+            display: flex;
+            align-items: center;
+            gap: 13px;
+            padding: 15px 17px;
+            margin-bottom: 20px;
+            border: 1px solid #1c3851;
+            border-radius: 12px;
+            background: linear-gradient(
+              90deg,
+              rgba(9, 42, 62, 0.48),
+              rgba(8, 18, 32, 0.55)
+            );
+          }
+
+          .statusPulse {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #21dc88;
+            box-shadow: 0 0 15px rgba(33, 220, 136, 0.75);
+          }
+
+          .statusBanner strong {
+            display: block;
+            font-size: 13px;
+          }
+
+          .statusBanner span {
+            display: block;
+            color: #70809a;
+            font-size: 11px;
+            margin-top: 2px;
+          }
+
+          .bannerVersion {
+            margin-left: auto;
+            color: #7284a2;
+            font-size: 11px;
+          }
+
+          .dashboardGrid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 13px;
+            margin-bottom: 14px;
+          }
+
+          .monitorCard {
+            min-height: 190px;
+            padding: 17px;
+            border: 1px solid #1a2943;
+            border-radius: 14px;
+            background: #09111f;
+            color: #eaf1ff;
+            text-align: left;
+            transition:
+              transform 0.15s,
+              border-color 0.15s;
+          }
+
+          .monitorCard:hover {
+            transform: translateY(-2px);
+            border-color: #315ba4;
+          }
+
+          .monitorTop {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 22px;
+          }
+
+          .monitorTop > span {
+            color: #38d890;
+            font-size: 9px;
+            font-weight: 800;
+            letter-spacing: 1px;
+          }
+
+          .monitorIcon {
+            width: 34px;
+            height: 34px;
+            border-radius: 10px;
+            display: grid;
+            place-items: center;
+            color: #7da8ff;
+            background: rgba(44, 91, 175, 0.13);
+            border: 1px solid #1c3969;
+          }
+
+          .monitorCard > strong {
+            font-size: 11px;
+            color: #8292b0;
+          }
+
+          .monitorCard h3 {
+            margin: 7px 0 7px;
+            font-size: 17px;
+          }
+
+          .monitorCard p {
+            margin: 0;
+            color: #65748f;
+            font-size: 11px;
+            line-height: 1.5;
+          }
+
+          .twoColumn {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 14px;
+            margin-bottom: 14px;
+          }
+
+          .panel {
+            border: 1px solid #192740;
+            border-radius: 14px;
+            background: #080f1c;
+            padding: 18px;
+          }
+
+          .panelHeader {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 15px;
+            margin-bottom: 17px;
+          }
+
+          .panelHeader h2 {
+            margin: 4px 0 0;
+            font-size: 16px;
+          }
+
+          .greenBadge,
+          .yellowBadge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            white-space: nowrap;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 8px;
+            font-weight: 800;
+            letter-spacing: 0.8px;
+          }
+
+          .greenBadge {
+            color: #4be09c;
+            border: 1px solid #164d39;
+            background: #08251c;
+          }
+
+          .yellowBadge {
+            color: #f4c96a;
+            border: 1px solid #5a4820;
+            background: #211b0b;
+          }
+
+          .statusRows {
+            display: grid;
+          }
+
+          .infoRow {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 11px 0;
+            border-bottom: 1px solid #141e31;
+            color: #8a98b1;
+            font-size: 11px;
+          }
+
+          .infoRow:last-child {
+            border-bottom: 0;
+          }
+
+          .rowOk,
+          .rowMuted {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+          }
+
+          .rowOk {
+            color: #4bdc9a;
+          }
+
+          .rowOk i {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #35d88d;
+          }
+
+          .rowMuted {
+            color: #6b7890;
+          }
+
+          .emptyProject {
+            min-height: 180px;
+            display: grid;
+            place-items: center;
+            align-content: center;
+            text-align: center;
+          }
+
+          .emptyIcon {
+            width: 54px;
+            height: 54px;
+            display: grid;
+            place-items: center;
+            margin-bottom: 11px;
+            border-radius: 14px;
+            color: #729eff;
+            background: #0d1a31;
+            border: 1px solid #203860;
+          }
+
+          .emptyIcon.large {
+            width: 70px;
+            height: 70px;
+          }
+
+          .emptyProject p,
+          .emptyLarge p {
+            color: #697893;
+            font-size: 12px;
+            margin: 0 0 14px;
+          }
+
+          .primaryButton,
+          .secondaryButton {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            min-height: 37px;
+            padding: 0 13px;
+            border-radius: 9px;
+            font-size: 11px;
+            font-weight: 700;
+          }
+
+          .primaryButton {
+            color: white;
+            border: 1px solid #3977ff;
+            background: linear-gradient(135deg, #1767ff, #7040ff);
+          }
+
+          .secondaryButton {
+            color: #a9b9d4;
+            border: 1px solid #263957;
+            background: #0b1424;
+          }
+
+          .quickActions {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+          }
+
+          .quickActions button {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 13px;
+            border: 1px solid #1a2942;
+            border-radius: 10px;
+            background: #0a1322;
+            color: #dce7fb;
+            text-align: left;
+          }
+
+          .quickActions button:hover {
+            border-color: #31548d;
+          }
+
+          .quickActions svg {
+            color: #6f9fff;
+          }
+
+          .quickActions strong,
+          .quickActions small {
+            display: block;
+          }
+
+          .quickActions strong {
+            font-size: 11px;
+          }
+
+          .quickActions small {
+            margin-top: 3px;
+            color: #65748e;
+            font-size: 9px;
+          }
+
+          .tabs {
+            display: flex;
+            gap: 5px;
+            margin-bottom: 15px;
+            padding: 4px;
+            border: 1px solid #17243a;
+            border-radius: 10px;
+            width: fit-content;
+            background: #080f1c;
+          }
+
+          .tabs button {
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            border: 0;
+            border-radius: 7px;
+            padding: 9px 12px;
+            background: transparent;
+            color: #7787a2;
+            font-size: 11px;
+          }
+
+          .tabs button.active {
+            color: white;
+            background: #14213a;
+          }
+
+          .emptyLarge {
+            min-height: 330px;
+            display: grid;
+            place-items: center;
+            align-content: center;
+            text-align: center;
+          }
+
+          .emptyLarge h3 {
+            margin: 4px 0 8px;
+          }
+
+          .fileInfo {
+            display: flex;
+            gap: 13px;
+            padding: 15px;
+            margin-bottom: 10px;
+            border: 1px solid #17253d;
+            border-radius: 10px;
+            background: #0a1322;
+          }
+
+          .fileType {
+            min-width: 45px;
+            height: 40px;
+            display: grid;
+            place-items: center;
+            border-radius: 8px;
+            background: #111f37;
+            color: #77a4ff;
+            font-size: 9px;
+            font-weight: 800;
+          }
+
+          .fileInfo strong {
+            font-size: 12px;
+          }
+
+          .fileInfo p {
+            margin: 4px 0 0;
+            color: #687892;
+            font-size: 10px;
+          }
+
+          .driveLogo {
+            width: 55px;
+            height: 55px;
+            display: grid;
+            place-items: center;
+            border-radius: 13px;
+            background: #111c30;
+            border: 1px solid #293c5d;
+            font-size: 23px;
+            font-weight: 900;
+          }
+
+          .buildGrid {
+            display: grid;
+            grid-template-columns: 390px 1fr;
+            gap: 15px;
+          }
+
+          .field {
+            display: grid;
+            gap: 7px;
+            margin-bottom: 14px;
+          }
+
+          .field > span {
+            color: #7f8da6;
+            font-size: 10px;
+            font-weight: 700;
+          }
+
+          .field input,
+          .field select {
+            width: 100%;
+            min-height: 39px;
+            padding: 0 11px;
+            border: 1px solid #21314d;
+            border-radius: 8px;
+            outline: none;
+            background: #0b1424;
+            color: #dfe8f9;
+            font-size: 11px;
+          }
+
+          .field input:focus,
+          .field select:focus {
+            border-color: #396fe2;
+          }
+
+          .compatibility {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 17px 0;
+            padding: 11px;
+            border: 1px solid #1d3144;
+            border-radius: 9px;
+            background: #09171d;
+          }
+
+          .compatibility p {
+            margin: 0;
+            color: #6f8097;
+            font-size: 10px;
+            line-height: 1.4;
+          }
+
+          .buildButton,
+          .fullButton {
+            width: 100%;
+          }
+
+          .console {
+            min-height: 370px;
+            max-height: 600px;
+            overflow: auto;
+            padding: 14px;
+            border: 1px solid #111c30;
+            border-radius: 9px;
+            background: #050a13;
+            color: #7c8ca7;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            font-size: 10px;
+            line-height: 1.9;
+          }
+
+          .consoleOk {
+            color: #52dca0;
+          }
+
+          .consoleSuccess {
+            color: #63a1ff;
+            font-weight: 800;
+          }
+
+          .chatPage {
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            width: min(1120px, 100%);
+            margin: 0 auto;
+            padding: 30px 30px 20px;
+          }
+
+          .chatHeader {
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 20px;
+            padding-bottom: 17px;
+          }
+
+          .chatHeader h1 {
+            margin-bottom: 5px;
+          }
+
+          .copyConversationButton {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            min-height: 36px;
+            padding: 0 12px;
+            border: 1px solid #273957;
+            border-radius: 9px;
+            background: #0b1424;
+            color: #9eaecc;
+            font-size: 10px;
+            font-weight: 700;
+          }
+
+          .copyConversationButton:hover {
+            color: #dce8ff;
+            border-color: #3c5f96;
+          }
+
+          .sourceBar {
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            gap: 11px;
+            padding: 11px 13px;
+            border: 1px solid #1b2a42;
+            border-radius: 10px;
+            background: #08111f;
+          }
+
+          .sourceIcon {
+            width: 30px;
+            height: 30px;
+            display: grid;
+            place-items: center;
+            border-radius: 8px;
+            color: #85aaff;
+            background: #101f39;
+          }
+
+          .sourceBar strong,
+          .sourceBar span {
+            display: block;
+          }
+
+          .sourceBar strong {
+            font-size: 10px;
+          }
+
+          .sourceBar span {
+            color: #65758e;
+            font-size: 9px;
+            margin-top: 2px;
+          }
+
+          .messages {
+            flex: 1;
+            min-height: 0;
+            overflow-y: auto;
+            padding: 18px 4px 12px;
+            scroll-behavior: smooth;
+          }
+
+          .messageRow {
+            display: flex;
+            margin-bottom: 10px;
+          }
+
+          .assistantRow {
+            justify-content: flex-start;
+          }
+
+          .userRow {
+            justify-content: flex-end;
+          }
+
+          .messageBubble {
+            position: relative;
+            max-width: min(780px, 88%);
+            padding: 12px 42px 13px 15px;
+            border-radius: 14px;
+            border: 1px solid #1b2a43;
+            line-height: 1.55;
+            white-space: pre-wrap;
+            font-size: 12px;
+          }
+
+          .assistantBubble {
+            background: #0b1423;
+            color: #d4def0;
+            border-top-left-radius: 5px;
+          }
+
+          .userBubble {
+            background: linear-gradient(
+              135deg,
+              rgba(28, 78, 168, 0.34),
+              rgba(67, 44, 151, 0.28)
+            );
+            color: #edf4ff;
+            border-color: #29477b;
+            border-top-right-radius: 5px;
+          }
+
+          .messageRole {
+            color: #7094d4;
+            font-size: 9px;
+            font-weight: 800;
+            letter-spacing: 0.8px;
+            margin-bottom: 5px;
+            text-transform: uppercase;
+          }
+
+          .userBubble .messageRole {
+            color: #9f9be9;
+          }
+
+          .messageText {
+            overflow-wrap: anywhere;
+          }
+
+          .messageCopy {
+            position: absolute;
+            right: 8px;
+            bottom: 8px;
+            width: 27px;
+            height: 27px;
+            display: grid;
+            place-items: center;
+            border: 1px solid #253752;
+            border-radius: 7px;
+            background: rgba(6, 12, 23, 0.7);
+            color: #71819d;
+          }
+
+          .messageCopy:hover {
+            color: #dce7fa;
+            border-color: #43638f;
+          }
+
+          .chatEmpty {
+            min-height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 25px;
+          }
+
+          .chatEmptyIcon {
+            width: 65px;
+            height: 65px;
+            display: grid;
+            place-items: center;
+            border-radius: 18px;
+            color: #7ca8ff;
+            background: #0d1c34;
+            border: 1px solid #254575;
+            box-shadow: 0 0 35px rgba(43, 103, 226, 0.12);
+          }
+
+          .chatEmpty h2 {
+            margin: 15px 0 6px;
+            font-size: 20px;
+          }
+
+          .chatEmpty p {
+            max-width: 500px;
+            margin: 0;
+            color: #65758f;
+            font-size: 11px;
+          }
+
+          .suggestionGrid {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 7px;
+            margin-top: 18px;
+          }
+
+          .suggestionGrid button {
+            padding: 8px 10px;
+            border: 1px solid #223451;
+            border-radius: 8px;
+            background: #0a1322;
+            color: #8292ac;
+            font-size: 9px;
+          }
+
+          .suggestionGrid button:hover {
+            color: #d5e1f6;
+            border-color: #3b5b8e;
+          }
+
+          .loadingBubble {
+            min-width: 100px;
+          }
+
+          .typing {
+            display: flex;
+            gap: 4px;
+            align-items: center;
+            height: 17px;
+          }
+
+          .typing span {
+            width: 5px;
+            height: 5px;
+            border-radius: 50%;
+            background: #6685bc;
+            animation: typing 1s infinite ease-in-out;
+          }
+
+          .typing span:nth-child(2) {
+            animation-delay: 0.15s;
+          }
+
+          .typing span:nth-child(3) {
+            animation-delay: 0.3s;
+          }
+
+          @keyframes typing {
+            0%,
+            60%,
+            100% {
+              transform: translateY(0);
+              opacity: 0.4;
+            }
+
+            30% {
+              transform: translateY(-3px);
+              opacity: 1;
+            }
+          }
+
+          .chatComposer {
+            flex-shrink: 0;
+            padding-top: 6px;
+          }
+
+          .attachmentTray {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-bottom: 7px;
+          }
+
+          .attachmentChip {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            max-width: 260px;
+            min-height: 32px;
+            padding: 5px 7px 5px 9px;
+            border: 1px solid #263b5b;
+            border-radius: 8px;
+            background: #0b1526;
+            color: #89a2c9;
+          }
+
+          .attachmentChip > div {
+            min-width: 0;
+          }
+
+          .attachmentChip strong,
+          .attachmentChip span {
+            display: block;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+          }
+
+          .attachmentChip strong {
+            max-width: 175px;
+            color: #c9d8ed;
+            font-size: 9px;
+          }
+
+          .attachmentChip span {
+            color: #657792;
+            font-size: 8px;
+          }
+
+          .attachmentChip > button {
+            width: 21px;
+            height: 21px;
+            display: grid;
+            place-items: center;
+            border: 0;
+            border-radius: 5px;
+            background: transparent;
+            color: #677995;
+          }
+
+          .attachmentChip > button:hover {
+            color: #f0a0a0;
+            background: #25151c;
+          }
+
+          .hiddenFileInput {
+            display: none;
+          }
+
+          .composerBox {
+            position: relative;
+            min-height: 108px;
+            padding: 12px 12px 56px 14px;
+            border: 1px solid #263957;
+            border-radius: 15px;
+            background: #091321;
+            box-shadow: 0 8px 35px rgba(0, 0, 0, 0.18);
+          }
+
+          .composerBox:focus-within {
+            border-color: #355c98;
+            box-shadow:
+              0 0 0 1px rgba(53, 92, 152, 0.15),
+              0 8px 35px rgba(0, 0, 0, 0.18);
+          }
+
+          .composerBox textarea {
+            display: block;
+            width: 100%;
+            min-height: 53px;
+            max-height: 160px;
+            resize: vertical;
+            border: 0;
+            outline: none;
+            background: transparent;
+            color: #e7eefc;
+            font-size: 12px;
+            line-height: 1.5;
+          }
+
+          .composerBox textarea::placeholder {
+            color: #596984;
+          }
+
+          .composerControls {
+            position: absolute;
+            right: 10px;
+            bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+          }
+
+          .composerIconButton,
+          .composerAgentButton,
+          .sendButton {
+            height: 32px;
+            border-radius: 8px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+          }
+
+          .composerIconButton {
+            width: 32px;
+            padding: 0;
+            border: 1px solid #263958;
+            background: #0c1728;
+            color: #8093b2;
+          }
+
+          .composerIconButton:hover {
+            color: #e0eaff;
+            border-color: #3a5c8c;
+          }
+
+          .composerAgentButton {
+            max-width: 170px;
+            gap: 6px;
+            padding: 0 9px;
+            border: 1px solid #293d60;
+            background: #0e192b;
+            color: #91a8ce;
+            font-size: 9px;
+            font-weight: 700;
+          }
+
+          .composerAgentButton:hover {
+            color: #e9f1ff;
+            border-color: #42669c;
+          }
+
+          .composerAgentButton span {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+          }
+
+          .sendButton {
+            width: 35px;
+            padding: 0;
+            border: 1px solid #3d75ee;
+            background: linear-gradient(135deg, #196bff, #7044ee);
+            color: white;
+            box-shadow: 0 5px 18px rgba(44, 105, 245, 0.2);
+          }
+
+          .sendButton:not(:disabled):hover {
+            transform: translateY(-1px);
+          }
+
+          .agentControl {
+            position: relative;
+          }
+
+          .agentMenu {
+            position: absolute;
+            z-index: 50;
+            min-width: 250px;
+            border: 1px solid #263a5a;
+            border-radius: 10px;
+            background: #0a1322;
+            box-shadow: 0 18px 45px rgba(0, 0, 0, 0.45);
+            overflow: hidden;
+          }
+
+          .composerAgentMenu {
+            right: 0;
+            bottom: calc(100% + 8px);
+          }
+
+          .agentMenuTitle {
+            padding: 9px 11px;
+            border-bottom: 1px solid #192841;
+            color: #607493;
+            font-size: 8px;
+            font-weight: 800;
+            letter-spacing: 1px;
+          }
+
+          .agentMenu > button {
+            width: 100%;
+            display: grid;
+            grid-template-columns: 27px 1fr auto;
+            align-items: center;
+            gap: 8px;
+            padding: 9px 10px;
+            border: 0;
+            border-bottom: 1px solid #141f33;
+            background: transparent;
+            color: #9caecc;
+            text-align: left;
+          }
+
+          .agentMenu > button:last-child {
+            border-bottom: 0;
+          }
+
+          .agentMenu > button:hover,
+          .agentMenu > button.selected {
+            background: #101d32;
+            color: #eef5ff;
+          }
+
+          .agentMenuIcon {
+            width: 27px;
+            height: 27px;
+            display: grid;
+            place-items: center;
+            border-radius: 7px;
+            color: #76a1ff;
+            background: #132340;
+          }
+
+          .agentMenu strong,
+          .agentMenu span {
+            display: block;
+          }
+
+          .agentMenu strong {
+            font-size: 10px;
+          }
+
+          .agentMenu span {
+            color: #63748f;
+            font-size: 8px;
+            margin-top: 2px;
+          }
+
+          .agentMenu > button > svg {
+            color: #4bdc99;
+          }
+
+          .composerHint {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            padding: 7px 3px 0;
+            color: #52627c;
+            font-size: 8px;
+          }
+
+          .settingsGrid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 14px;
+          }
+
+          .connection {
+            display: flex;
+            align-items: center;
+            gap: 11px;
+            padding: 11px 0;
+            border-bottom: 1px solid #162237;
+          }
+
+          .connection:last-of-type {
+            border-bottom: 0;
+          }
+
+          .connectionIcon {
+            width: 33px;
+            height: 33px;
+            display: grid;
+            place-items: center;
+            flex: 0 0 auto;
+            border-radius: 8px;
+            color: #7ba4ff;
+            background: #101d33;
+          }
+
+          .connection > div:nth-child(2) {
+            flex: 1;
+            min-width: 0;
+          }
+
+          .connection strong {
+            display: block;
+            font-size: 10px;
+          }
+
+          .connection p {
+            margin: 3px 0 0;
+            color: #63728a;
+            font-size: 9px;
+          }
+
+          .securityNote {
+            margin: 0 0 13px;
+            color: #65758e;
+            font-size: 9px;
+            line-height: 1.5;
+          }
+
+          .flowCanvas {
+            min-height: 510px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 13px;
+            padding: 30px;
+            border: 1px solid #16243a;
+            border-radius: 11px;
+            background:
+              linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+              linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+              #060c16;
+            background-size: 30px 30px;
+          }
+
+          .flowNode {
+            min-width: 180px;
+            padding: 13px;
+            display: grid;
+            grid-template-columns: 34px 1fr;
+            column-gap: 9px;
+            align-items: center;
+            border: 1px solid #28426c;
+            border-radius: 10px;
+            background: #0b1728;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
+          }
+
+          .flowNodeIcon {
+            width: 34px;
+            height: 34px;
+            display: grid;
+            place-items: center;
+            grid-row: span 2;
+            border-radius: 8px;
+            color: #75a3ff;
+            background: #11233e;
+          }
+
+          .flowNode strong {
+            font-size: 11px;
+          }
+
+          .flowNode span {
+            color: #63748e;
+            font-size: 9px;
+            margin-top: 2px;
+          }
+
+          .flowArrow {
+            color: #4d73ad;
+            font-size: 17px;
+          }
+
+          .flowSplit {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 10px;
+          }
+
+          @media (max-width: 1050px) {
+            .dashboardGrid {
+              grid-template-columns: repeat(2, 1fr);
+            }
+
+            .quickActions {
+              grid-template-columns: repeat(2, 1fr);
+            }
+
+            .buildGrid {
+              grid-template-columns: 1fr;
+            }
+          }
+
+          @media (max-width: 800px) {
+            .sidebar {
+              display: none;
+            }
+
+            .mainArea {
+              width: 100%;
+              margin-left: 0;
+              padding-bottom: 65px;
+            }
+
+            .mobileHeader {
+              display: flex;
+              align-items: center;
+              gap: 9px;
+              height: 55px;
+              padding: 0 15px;
+              border-bottom: 1px solid #17243a;
+              background: rgba(5, 9, 20, 0.94);
+              position: sticky;
+              top: 0;
+              z-index: 15;
+            }
+
+            .mobileHeader strong {
+              font-size: 12px;
+            }
+
+            .mobileNav {
+              display: grid;
+              grid-template-columns: repeat(6, 1fr);
+              position: fixed;
+              left: 0;
+              right: 0;
+              bottom: 0;
+              height: 62px;
+              z-index: 30;
+              border-top: 1px solid #1b2941;
+              background: rgba(5, 9, 20, 0.98);
+              backdrop-filter: blur(14px);
+            }
+
+            .mobileNav button {
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              justify-content: center;
+              gap: 3px;
+              border: 0;
+              background: transparent;
+              color: #5f6e87;
+              font-size: 7px;
+            }
+
+            .mobileNav button.active {
+              color: #75a4ff;
+            }
+
+            .page {
+              padding: 22px 14px 30px;
+            }
+
+            .twoColumn,
+            .settingsGrid {
+              grid-template-columns: 1fr;
+            }
+
+            .dashboardGrid {
+              grid-template-columns: 1fr 1fr;
+            }
+
+            .chatPage {
+              height: calc(100vh - 55px);
+              padding: 18px 12px 9px;
+            }
+
+            .chatHeader {
+              padding-bottom: 12px;
+            }
+
+            .chatHeader p {
+              display: none;
+            }
+
+            .copyConversationButton span {
+              display: none;
+            }
+
+            .copyConversationButton {
+              width: 36px;
+              padding: 0;
+            }
+
+            .sourceBar span {
+              display: none;
+            }
+
+            .messages {
+              padding-top: 12px;
+            }
+
+            .messageBubble {
+              max-width: 94%;
+            }
+
+            .composerAgentButton {
+              max-width: 145px;
+            }
+
+            .composerHint span:last-child {
+              display: none;
+            }
+          }
+
+          @media (max-width: 520px) {
+            .dashboardGrid,
+            .quickActions {
+              grid-template-columns: 1fr;
+            }
+
+            .statusBanner {
+              align-items: flex-start;
+            }
+
+            .bannerVersion {
+              display: none;
+            }
+
+            .tabs {
+              width: 100%;
+              overflow-x: auto;
+            }
+
+            .tabs button {
+              white-space: nowrap;
+            }
+
+            .panel {
+              padding: 14px;
+            }
+
+            .chatHeader h1 {
+              font-size: 24px;
+            }
+
+            .composerBox {
+              min-height: 105px;
+              padding-bottom: 55px;
+            }
+
+            .composerAgentButton {
+              width: 32px;
+              padding: 0;
+            }
+
+            .composerAgentButton span {
+              display: none;
+            }
+
+            .composerControls {
+              right: 8px;
+              bottom: 8px;
+            }
+
+            .composerIconButton,
+            .composerAgentButton {
+              width: 31px;
+              height: 31px;
+            }
+
+            .sendButton {
+              width: 34px;
+              height: 34px;
+            }
+
+            .attachmentChip {
+              max-width: 100%;
+            }
+
+            .attachmentChip strong {
+              max-width: 150px;
+            }
+
+            .composerHint {
+              font-size: 7px;
+            }
+
+            .flowSplit {
+              width: 100%;
+            }
+
+            .flowNode {
+              min-width: 150px;
+            }
+          }
+          EOF
+
+      - name: Install dependencies
+        working-directory: client
+        run: npm install --no-audit --no-fund
+
+      - name: Build WBA
+        working-directory: client
+        run: npm run build
+
+      - name: Verify build
+        shell: bash
+        run: |
+          test -f client/dist/index.html
+          echo "OU The Builder WBA build verified successfully."
+          find client/dist -maxdepth 2 -type f | sort
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: client/dist
+
+      - name: Deploy to GitHub Pages
+        uses: actions/deploy-pages@v4
