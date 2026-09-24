@@ -43,7 +43,17 @@ function App() {
     }
   })
 
-  const [files, setFiles] = useState([])
+  const [files, setFiles] = useState(() => {
+    try {
+      const saved = localStorage.getItem('ou_builder_files')
+      return saved ? JSON.parse(saved) : []
+    } catch {
+      return []
+    }
+  })
+
+  const [pendingFolder, setPendingFolder] = useState(null)
+  const [storageNotice, setStorageNotice] = useState('')
 
   const [chatMessages, setChatMessages] = useState([
     {
@@ -61,6 +71,7 @@ function App() {
   ])
 
   const fileInput = useRef(null)
+  const folderInput = useRef(null)
 
   useEffect(() => {
     localStorage.setItem(
@@ -75,6 +86,13 @@ function App() {
       currentProject
     )
   }, [currentProject])
+
+  useEffect(() => {
+    localStorage.setItem(
+      'ou_builder_files',
+      JSON.stringify(files)
+    )
+  }, [files])
 
   const activeLabel = useMemo(() => {
     return NAV_ITEMS.find(item => item.id === activePage)?.label ||
@@ -117,10 +135,13 @@ function App() {
     }
 
     const remaining = projects.filter(item => item.id !== id)
+    const nextProjects = remaining.length ? remaining : INITIAL_PROJECTS
 
-    setProjects(
-      remaining.length ? remaining : INITIAL_PROJECTS
-    )
+    setProjects(nextProjects)
+
+    if (project.name === currentProject) {
+      setCurrentProject(nextProjects[0].name)
+    }
   }
 
   function chooseProject(project) {
@@ -132,18 +153,76 @@ function App() {
     fileInput.current?.click()
   }
 
+  function openFolderPicker() {
+    folderInput.current?.click()
+  }
+
   function handleFiles(event) {
     const selected = Array.from(event.target.files || [])
 
     const prepared = selected.map(file => ({
       id: `${file.name}-${file.size}-${Date.now()}-${Math.random()}`,
       name: file.name,
+      path: file.webkitRelativePath || file.name,
       size: file.size,
-      type: file.type || 'Unknown'
+      type: file.type || 'Unknown',
+      source: 'file'
     }))
 
     setFiles(previous => [...previous, ...prepared])
+    setStorageNotice(`${prepared.length} file${prepared.length === 1 ? '' : 's'} added to the current workspace.`)
     event.target.value = ''
+  }
+
+  function handleFolder(event) {
+    const selected = Array.from(event.target.files || [])
+
+    if (!selected.length) return
+
+    const firstPath = selected[0].webkitRelativePath || selected[0].name
+    const folderName = firstPath.split('/')[0] || 'Selected Folder'
+
+    const prepared = selected.map(file => ({
+      id: `${file.webkitRelativePath || file.name}-${file.size}-${Date.now()}-${Math.random()}`,
+      name: file.name,
+      path: file.webkitRelativePath || file.name,
+      size: file.size,
+      type: file.type || 'Unknown',
+      source: 'folder'
+    }))
+
+    setPendingFolder({
+      name: folderName,
+      files: prepared
+    })
+    setStorageNotice(`Folder "${folderName}" is selected. Press Use this Folder to import it.`)
+    event.target.value = ''
+  }
+
+  function useSelectedFolder() {
+    if (!pendingFolder) return
+
+    setFiles(previous => [...previous, ...pendingFolder.files])
+
+    const existing = projects.find(project => project.name === pendingFolder.name)
+
+    if (!existing) {
+      const project = {
+        id: `folder-${Date.now()}`,
+        name: pendingFolder.name,
+        type: 'Imported Folder',
+        status: 'Imported',
+        updated: new Date().toISOString()
+      }
+
+      setProjects(previous => [...previous, project])
+      setCurrentProject(project.name)
+    } else {
+      setCurrentProject(existing.name)
+    }
+
+    setStorageNotice(`Folder "${pendingFolder.name}" is now the current project source.`)
+    setPendingFolder(null)
   }
 
   function clearFiles() {
@@ -256,7 +335,11 @@ function App() {
           <FilesPage
             files={files}
             openFilePicker={openFilePicker}
+            openFolderPicker={openFolderPicker}
+            pendingFolder={pendingFolder}
+            useSelectedFolder={useSelectedFolder}
             clearFiles={clearFiles}
+            notice={storageNotice}
           />
         )
 
@@ -406,7 +489,18 @@ function App() {
         type="file"
         multiple
         hidden
+        accept=".zip,.rar,.txt,.pdf,.jpg,.jpeg,.png,.gif,.webp,.svg,.mp3,.mp4,.js,.jsx,.ts,.tsx,.json,.html,.css,.kt,.java,.xml"
         onChange={handleFiles}
+      />
+
+      <input
+        ref={folderInput}
+        type="file"
+        webkitdirectory="true"
+        directory=""
+        multiple
+        hidden
+        onChange={handleFolder}
       />
 
     </div>
@@ -743,13 +837,17 @@ function ProjectsPage({
 function FilesPage({
   files,
   openFilePicker,
-  clearFiles
+  openFolderPicker,
+  pendingFolder,
+  useSelectedFolder,
+  clearFiles,
+  notice
 }) {
   return (
     <PageHeader
-      eyebrow="PROJECT FILES"
+      eyebrow="PROJECT & STORAGE"
       title="Files"
-      description="Add project resources and inspect files selected for the workspace."
+      description="Add project resources, ZIP archives, or use an entire extracted folder as the current project source."
       action="＋ Add Files"
       onAction={openFilePicker}
     >
@@ -765,11 +863,42 @@ function FilesPage({
           onAction={clearFiles}
         />
 
+        <div className="quick-actions">
+          <button onClick={openFilePicker}>
+            ＋ Upload Files / ZIP
+          </button>
+
+          <button onClick={openFolderPicker}>
+            📁 Browse Folder
+          </button>
+
+          {pendingFolder && (
+            <button
+              className="primary-button"
+              onClick={useSelectedFolder}
+            >
+              📁 Use this Folder
+            </button>
+          )}
+        </div>
+
+        {notice && (
+          <div className="flow-note">
+            {notice}
+          </div>
+        )}
+
+        {pendingFolder && (
+          <div className="flow-note">
+            <strong>{pendingFolder.name}</strong> selected — {pendingFolder.files.length} file{pendingFolder.files.length === 1 ? '' : 's'} found. Press <strong>Use this Folder</strong> to make the entire folder the current project source.
+          </div>
+        )}
+
         {files.length === 0 ? (
           <EmptyState
             icon="▤"
             title="No files selected"
-            text="Add ZIP files, source files, images or other project resources from your device."
+            text="Upload individual files or a ZIP, or browse an extracted folder and use the entire folder without selecting each file separately."
             action="Select Files"
             onAction={openFilePicker}
           />
@@ -783,7 +912,7 @@ function FilesPage({
               >
 
                 <div className="file-icon">
-                  FILE
+                  {file.source === 'folder' ? 'DIR' : 'FILE'}
                 </div>
 
                 <div className="file-info">
@@ -791,7 +920,7 @@ function FilesPage({
                   <strong>{file.name}</strong>
 
                   <span>
-                    {file.type} · {formatBytes(file.size)}
+                    {file.path || file.name} · {file.type} · {formatBytes(file.size)}
                   </span>
 
                 </div>
@@ -1084,7 +1213,7 @@ function DrivePage() {
 
         <button
           className="secondary-button"
-          disabled
+          onClick={() => window.alert('Google Drive connection requires the secure OAuth backend stage. This button is now responsive; the real connection will be enabled when the backend is connected.')}
         >
           Connect Google Drive
         </button>
