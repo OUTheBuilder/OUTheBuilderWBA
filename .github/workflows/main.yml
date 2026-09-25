@@ -1,0 +1,392 @@
+name: OU The Builder
+
+on:
+  push:
+    branches:
+      - main
+
+  workflow_dispatch:
+    inputs:
+      android_project_zip:
+        description: "Optional direct HTTPS URL to an Android project ZIP"
+        required: false
+        type: string
+        default: ""
+
+      google_drive_file_id:
+        description: "Google Drive File ID of the Android project ZIP"
+        required: false
+        type: string
+        default: ""
+
+      android_build_type:
+        description: "Android build type"
+        required: true
+        type: choice
+        default: debug
+        options:
+          - debug
+          - release
+
+      android_gradle_task:
+        description: "Optional Gradle task. Leave blank for automatic detection."
+        required: false
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: true
+
+jobs:
+
+  build-and-deploy-wba:
+    name: Build and Deploy OU The Builder WBA
+    runs-on: ubuntu-24.04
+
+    steps:
+
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js 24
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          set -e
+
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
+
+      - name: Build OU The Builder WBA
+        shell: bash
+        run: |
+          set -e
+          npm run build
+
+      - name: Verify WBA build
+        shell: bash
+        run: |
+          set -e
+
+          test -f dist/index.html
+
+          echo "=========================================="
+          echo "WBA BUILD VERIFIED"
+          echo "=========================================="
+
+          find dist -maxdepth 2 -type f | sort | head -200
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v6
+
+      - name: Upload WBA Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+      - name: Deploy WBA to GitHub Pages
+        uses: actions/deploy-pages@v5
+
+
+  remote-android-build:
+    name: Remote Android APK Build
+    runs-on: ubuntu-24.04
+
+    if: github.event_name == 'workflow_dispatch'
+
+    permissions:
+      contents: read
+
+    steps:
+
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+
+      - name: Show Android build request
+        shell: bash
+        env:
+          GOOGLE_DRIVE_FILE_ID: ${{ inputs.google_drive_file_id }}
+          PROJECT_ZIP_URL: ${{ inputs.android_project_zip }}
+          BUILD_TYPE: ${{ inputs.android_build_type }}
+          GRADLE_TASK: ${{ inputs.android_gradle_task }}
+
+        run: |
+          set -e
+
+          echo "=========================================="
+          echo "OU THE BUILDER ANDROID BUILD REQUEST"
+          echo "=========================================="
+
+          echo ""
+          echo "Build type:"
+          echo "$BUILD_TYPE"
+
+          echo ""
+          echo "Gradle task:"
+
+          if [ -n "$GRADLE_TASK" ]; then
+            echo "$GRADLE_TASK"
+          else
+            echo "(automatic)"
+          fi
+
+          echo ""
+          echo "Project source:"
+
+          if [ -n "$GOOGLE_DRIVE_FILE_ID" ]; then
+            echo "Google Drive project ZIP"
+            echo "File ID received."
+
+          elif [ -n "$PROJECT_ZIP_URL" ]; then
+            echo "Direct HTTPS project ZIP"
+
+          else
+            echo "::error::No Android project source was provided."
+            echo ""
+            echo "Please provide either:"
+            echo "1. Google Drive File ID"
+            echo "2. Direct HTTPS ZIP URL"
+            exit 1
+          fi
+
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v4
+
+
+      - name: Install Android SDK components
+        shell: bash
+        run: |
+          set -e
+
+          echo "=========================================="
+          echo "ANDROID SDK SETUP"
+          echo "=========================================="
+
+          yes | sdkmanager --licenses >/dev/null || true
+
+          sdkmanager \
+            "platform-tools" \
+            "platforms;android-36" \
+            "build-tools;36.0.0"
+
+
+      - name: Prepare Android project workspace
+        shell: bash
+        env:
+          PROJECT_ZIP_URL: ${{ inputs.android_project_zip }}
+          GOOGLE_DRIVE_FILE_ID: ${{ inputs.google_drive_file_id }}
+          GOOGLE_DRIVE_BRIDGE_URL: ${{ secrets.GOOGLE_DRIVE_BRIDGE_URL }}
+          GOOGLE_DRIVE_BRIDGE_SECRET: ${{ secrets.GOOGLE_DRIVE_BRIDGE_SECRET }}
+
+        run: |
+          set -euo pipefail
+
+          rm -rf android-build
+          mkdir -p android-build
+
+          echo "=========================================="
+          echo "PREPARING ANDROID PROJECT"
+          echo "=========================================="
+
+          if [ -n "$GOOGLE_DRIVE_FILE_ID" ]; then
+
+            echo ""
+            echo "Source: Google Drive"
+
+            if [ -z "$GOOGLE_DRIVE_BRIDGE_URL" ]; then
+              echo "::error::GOOGLE_DRIVE_BRIDGE_URL secret is missing."
+              exit 1
+            fi
+
+            if [ -z "$GOOGLE_DRIVE_BRIDGE_SECRET" ]; then
+              echo "::error::GOOGLE_DRIVE_BRIDGE_SECRET secret is missing."
+              exit 1
+            fi
+
+            echo ""
+            echo "Requesting ZIP from Build Bridge..."
+
+            ENCODED_FILE_ID="$(
+              printf '%s' "$GOOGLE_DRIVE_FILE_ID" |
+              jq -sRr @uri
+            )"
+
+            ENCODED_SECRET="$(
+              printf '%s' "$GOOGLE_DRIVE_BRIDGE_SECRET" |
+              jq -sRr @uri
+            )"
+
+            curl \
+              --fail \
+              --silent \
+              --show-error \
+              --location \
+              --retry 3 \
+              --connect-timeout 30 \
+              --output bridge-response.json \
+              "$GOOGLE_DRIVE_BRIDGE_URL?action=download&fileId=$ENCODED_FILE_ID&secret=$ENCODED_SECRET"
+
+            echo ""
+            echo "Bridge response received."
+
+            jq -e \
+              '.ok == true and (.base64 | type == "string")' \
+              bridge-response.json \
+              >/dev/null
+
+            echo "Bridge response verified."
+
+            jq -r '.base64' bridge-response.json |
+              base64 --decode > android-project.zip
+
+            rm -f bridge-response.json
+
+          elif [ -n "$PROJECT_ZIP_URL" ]; then
+
+            echo ""
+            echo "Source: Direct HTTPS ZIP"
+
+            curl \
+              --fail \
+              --location \
+              --show-error \
+              --retry 3 \
+              --connect-timeout 30 \
+              --output android-project.zip \
+              "$PROJECT_ZIP_URL"
+
+          else
+
+            echo "::error::No Android project source was provided."
+            exit 1
+
+          fi
+
+          if [ ! -s android-project.zip ]; then
+            echo "::error::Android project ZIP is empty or missing."
+            exit 1
+          fi
+
+          echo ""
+          echo "Android project ZIP:"
+          ls -lh android-project.zip
+
+          echo ""
+          echo "Extracting Android project..."
+
+          unzip -q android-project.zip -d android-build
+
+          echo ""
+          echo "Extracted project files:"
+
+          find android-build \
+            -maxdepth 5 \
+            -type f \
+            | sort \
+            | head -300
+
+
+      - name: Locate Android project
+        shell: bash
+        run: |
+          set -e
+
+          echo "=========================================="
+          echo "LOCATING ANDROID PROJECT"
+          echo "=========================================="
+
+          GRADLEW_PATH="$(
+            find android-build \
+              -type f \
+              -name gradlew \
+              -print \
+              -quit \
+              || true
+          )"
+
+          if [ -z "$GRADLEW_PATH" ]; then
+
+            echo "::error::No gradlew file was found."
+
+            echo ""
+            echo "The Android ZIP must contain:"
+            echo "gradlew"
+            echo "gradle/wrapper/gradle-wrapper.jar"
+            echo "settings.gradle or settings.gradle.kts"
+            echo "build.gradle or build.gradle.kts"
+            echo "app/"
+
+            echo ""
+            echo "Files found in ZIP:"
+
+            find android-build \
+              -maxdepth 6 \
+              -type f \
+              | sort
+
+            exit 1
+          fi
+
+          PROJECT_DIR="$(dirname "$GRADLEW_PATH")"
+
+          echo ""
+          echo "Android project found:"
+          echo "$PROJECT_DIR"
+
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+
+
+      - name: Validate Gradle wrapper
+        shell: bash
+        run: |
+          set -e
+
+          cd "$PROJECT_DIR"
+
+          echo "=========================================="
+          echo "VALIDATING GRADLE WRAPPER"
+          echo "=========================================="
+
+          test -f gradlew
+
+          chmod +x gradlew
+
+          if [ ! -f gradle/wrapper/gradle-wrapper.jar ]; then
+            echo "::error::gradle-wrapper.jar is missing."
+            exit 1
+          fi
+
+          echo ""
+          echo "Gradle wrapper found."
+
+          echo ""
+          ./gradlew --version
+
+
+      - name: Inspect Android project
+        shell: bash
+        run: |
+         
