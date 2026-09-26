@@ -1,0 +1,221 @@
+name: Fix and Deploy OU The Builder WBA
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
+jobs:
+  fix-build-and-deploy:
+    name: Fix, Build and Deploy WBA
+    runs-on: ubuntu-latest
+
+    steps:
+      # ---------------------------------------------------------
+      # 1. Get the current repository
+      # ---------------------------------------------------------
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      # ---------------------------------------------------------
+      # 2. Use Node.js 24
+      # ---------------------------------------------------------
+      - name: Setup Node.js 24
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      # ---------------------------------------------------------
+      # 3. Fix the known JavaScript startup error
+      #
+      # The problem is:
+      #
+      # HomePage() receives "files" as a prop, but was calling
+      # getCurrentProjectFiles(), which only exists inside App().
+      #
+      # We change:
+      #
+      # getCurrentProjectFiles().length
+      #
+      # to:
+      #
+      # files.length
+      #
+      # Only the incorrect HomePage reference is changed.
+      # ---------------------------------------------------------
+      - name: Fix HomePage project-file counter
+        shell: bash
+        run: |
+          set -e
+
+          FILE="src/App.jsx"
+
+          if [ ! -f "$FILE" ]; then
+            echo "ERROR: $FILE was not found."
+            exit 1
+          fi
+
+          echo "Checking current App.jsx..."
+
+          python3 <<'PY'
+          from pathlib import Path
+
+          path = Path("src/App.jsx")
+          text = path.read_text(encoding="utf-8")
+
+          old = "<strong>{getCurrentProjectFiles().length}</strong>"
+          new = "<strong>{files.length}</strong>"
+
+          if old in text:
+              text = text.replace(old, new, 1)
+              path.write_text(text, encoding="utf-8")
+              print("FIX APPLIED:")
+              print("  getCurrentProjectFiles().length")
+              print("  -> files.length")
+          elif new in text:
+              print("FIX ALREADY PRESENT.")
+          else:
+              raise SystemExit(
+                  "ERROR: Expected HomePage project-file counter was not found."
+              )
+          PY
+
+          echo
+          echo "Verifying the fix..."
+
+          if grep -n "getCurrentProjectFiles().length" "$FILE"; then
+            echo "ERROR: Incorrect HomePage reference still exists."
+            exit 1
+          fi
+
+          if grep -n "<strong>{files.length}</strong>" "$FILE"; then
+            echo "OK: HomePage now uses files.length."
+          else
+            echo "ERROR: Fixed expression was not found."
+            exit 1
+          fi
+
+      # ---------------------------------------------------------
+      # 4. Show exactly what changed
+      # ---------------------------------------------------------
+      - name: Show source change
+        shell: bash
+        run: |
+          echo "Repository changes:"
+          git status --short
+
+          echo
+          echo "Diff:"
+          git diff -- src/App.jsx
+
+      # ---------------------------------------------------------
+      # 5. Install WBA dependencies
+      # ---------------------------------------------------------
+      - name: Install dependencies
+        shell: bash
+        run: |
+          set -e
+
+          if [ -f package-lock.json ]; then
+            echo "Using npm ci..."
+            npm ci
+          else
+            echo "package-lock.json not found."
+            echo "Using npm install..."
+            npm install
+          fi
+
+      # ---------------------------------------------------------
+      # 6. Build the WBA
+      # ---------------------------------------------------------
+      - name: Build WBA
+        shell: bash
+        run: |
+          set -e
+
+          npm run build
+
+          if [ ! -f "dist/index.html" ]; then
+            echo "ERROR: dist/index.html was not created."
+            exit 1
+          fi
+
+          echo
+          echo "WBA build completed successfully."
+          echo
+          echo "Generated files:"
+          find dist -maxdepth 3 -type f | sort
+
+      # ---------------------------------------------------------
+      # 7. Configure GitHub Pages
+      # ---------------------------------------------------------
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v6
+
+      # ---------------------------------------------------------
+      # 8. Upload the built WBA to Pages
+      # ---------------------------------------------------------
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./dist
+
+      # ---------------------------------------------------------
+      # 9. Deploy to GitHub Pages
+      # ---------------------------------------------------------
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5
+
+      # ---------------------------------------------------------
+      # 10. Commit the source-code fix
+      # ---------------------------------------------------------
+      - name: Commit source-code fix
+        shell: bash
+        run: |
+          set -e
+
+          git config user.name "OU The Builder"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          if git diff --quiet -- src/App.jsx; then
+            echo "No source-code changes need to be committed."
+            exit 0
+          fi
+
+          git add src/App.jsx
+
+          git commit -m "Fix WBA HomePage project file counter"
+
+          git push origin HEAD:main
+
+      # ---------------------------------------------------------
+      # 11. Final result
+      # ---------------------------------------------------------
+      - name: Deployment summary
+        shell: bash
+        run: |
+          echo "=================================================="
+          echo "OU THE BUILDER WBA DEPLOYMENT COMPLETE"
+          echo "=================================================="
+          echo
+          echo "The startup JavaScript error was fixed."
+          echo
+          echo "The WBA was successfully built."
+          echo
+          echo "The WBA was deployed to GitHub Pages."
+          echo
+          echo "Expected site:"
+          echo "https://outhebuilder.github.io/OUTheBuilderWBA/"
+          echo
+          echo "=================================================="
