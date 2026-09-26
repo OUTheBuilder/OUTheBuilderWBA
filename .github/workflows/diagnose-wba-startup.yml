@@ -1,0 +1,256 @@
+name: Diagnose and Fix WBA Startup
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: true
+
+jobs:
+  diagnose-and-deploy:
+    name: Diagnose WBA Startup and Redeploy
+    runs-on: ubuntu-24.04
+
+    steps:
+
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js 24
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Add WBA startup error screen
+        shell: bash
+        run: |
+          set -e
+
+          cat > src/main.jsx <<'EOF'
+          import React from 'react'
+          import ReactDOM from 'react-dom/client'
+          import App from './App.jsx'
+          import './App.css'
+
+          class AppErrorBoundary extends React.Component {
+            constructor(props) {
+              super(props)
+
+              this.state = {
+                error: null
+              }
+            }
+
+            static getDerivedStateFromError(error) {
+              return {
+                error
+              }
+            }
+
+            componentDidCatch(error, info) {
+              console.error(
+                'OU The Builder WBA startup error:',
+                error,
+                info
+              )
+            }
+
+            render() {
+              if (this.state.error) {
+                const message =
+                  this.state.error?.stack ||
+                  this.state.error?.message ||
+                  String(this.state.error)
+
+                return (
+                  <div
+                    style={{
+                      minHeight: '100vh',
+                      boxSizing: 'border-box',
+                      padding: '24px',
+                      background: '#050816',
+                      color: '#eef4ff',
+                      fontFamily:
+                        'Inter, system-ui, -apple-system, sans-serif'
+                    }}
+                  >
+                    <div
+                      style={{
+                        maxWidth: '760px',
+                        margin: '40px auto',
+                        padding: '24px',
+                        borderRadius: '16px',
+                        border:
+                          '1px solid rgba(255,90,110,.4)',
+                        background: '#0c1229',
+                        boxShadow:
+                          '0 20px 60px rgba(0,0,0,.35)'
+                      }}
+                    >
+                      <div
+                        style={{
+                          color: '#6f9dff',
+                          fontSize: '11px',
+                          fontWeight: 800,
+                          letterSpacing: '1.5px',
+                          marginBottom: '10px'
+                        }}
+                      >
+                        OU THE BUILDER
+                      </div>
+
+                      <h1 style={{ marginTop: 0 }}>
+                        WBA Startup Error
+                      </h1>
+
+                      <p
+                        style={{
+                          color: '#8b99b5',
+                          lineHeight: 1.6
+                        }}
+                      >
+                        The GitHub Pages site loaded, but the
+                        application encountered a JavaScript
+                        error while starting.
+                      </p>
+
+                      <pre
+                        style={{
+                          whiteSpace: 'pre-wrap',
+                          overflowWrap: 'anywhere',
+                          padding: '16px',
+                          borderRadius: '10px',
+                          background: '#03050d',
+                          color: '#ff9eaa',
+                          fontSize: '12px',
+                          lineHeight: 1.6,
+                          overflow: 'auto'
+                        }}
+                      >
+                        {message}
+                      </pre>
+
+                      <p
+                        style={{
+                          color: '#687690',
+                          fontSize: '12px'
+                        }}
+                      >
+                        This diagnostic screen was added
+                        automatically by the WBA startup
+                        diagnostic workflow.
+                      </p>
+                    </div>
+                  </div>
+                )
+              }
+
+              return this.props.children
+            }
+          }
+
+          const rootElement =
+            document.getElementById('root')
+
+          if (!rootElement) {
+            document.body.innerHTML = `
+              <div style="
+                min-height:100vh;
+                box-sizing:border-box;
+                padding:24px;
+                background:#050816;
+                color:#eef4ff;
+                font-family:system-ui,sans-serif;
+              ">
+                <h1>OU The Builder</h1>
+                <h2>Startup Error</h2>
+                <p>
+                  The application could not find the
+                  React root element.
+                </p>
+              </div>
+            `
+          } else {
+            ReactDOM.createRoot(rootElement).render(
+              <React.StrictMode>
+                <AppErrorBoundary>
+                  <App />
+                </AppErrorBoundary>
+              </React.StrictMode>
+            )
+          }
+          EOF
+
+          echo "=========================================="
+          echo "STARTUP DIAGNOSTIC INSTALLED"
+          echo "=========================================="
+
+          sed -n '1,260p' src/main.jsx
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          set -e
+
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
+
+      - name: Build WBA
+        shell: bash
+        run: |
+          set -e
+
+          npm run build
+
+          test -f dist/index.html
+
+          echo ""
+          echo "=========================================="
+          echo "WBA BUILD VERIFIED"
+          echo "=========================================="
+
+          find dist -maxdepth 2 -type f | sort | head -200
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v6
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+      - name: Deploy Pages
+        uses: actions/deploy-pages@v5
+
+      - name: Commit diagnostic change
+        shell: bash
+        run: |
+          set -e
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add src/main.jsx
+
+          if git diff --cached --quiet; then
+            echo "No source change to commit."
+            exit 0
+          fi
+
+          git commit -m "Add WBA startup diagnostic"
+          git push origin HEAD:main
+
+          echo ""
+          echo "=========================================="
+          echo "STARTUP DIAGNOSTIC DEPLOYED"
+          echo "=========================================="
