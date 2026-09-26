@@ -1,4 +1,4 @@
-name: Apply OU The Bulder Inspection Stage
+name: Apply OU The Builder Inspection Stage
 
 on:
   workflow_dispatch:
