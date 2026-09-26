@@ -1,0 +1,580 @@
+name: Apply OU The Builder Inspection Stage
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update-app:
+    name: Add Inspect and Compatibility
+    runs-on: ubuntu-24.04
+
+    steps:
+
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Update App.jsx
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path("src/App.jsx")
+          text = path.read_text(encoding="utf-8")
+
+          # ---------------------------------------------------------
+          # 1. Add inspection state
+          # ---------------------------------------------------------
+
+          old = """  const [buildStatus, setBuildStatus] = useState('Ready')
+            const [buildTarget, setBuildTarget] = useState('Android APK')
+            const [buildType, setBuildType] = useState('Debug')
+          """
+
+          new = """  const [buildStatus, setBuildStatus] = useState('Ready')
+            const [buildTarget, setBuildTarget] = useState('Android APK')
+            const [buildType, setBuildType] = useState('Debug')
+
+            const [inspection, setInspection] = useState({
+              status: 'Not run',
+              projectType: 'Unknown',
+              filesFound: 0,
+              checks: [],
+              compatibility: 'Not checked',
+              compatibilityChecks: []
+            })
+          """
+
+          if old not in text:
+              raise SystemExit("Could not find build state section.")
+
+          text = text.replace(old, new, 1)
+
+          # ---------------------------------------------------------
+          # 2. Replace the old simulated build function
+          # ---------------------------------------------------------
+
+          start = text.find("  function startBuild()")
+          end = text.find("  function sendChat()", start)
+
+          if start == -1 or end == -1:
+              raise SystemExit("Could not find startBuild function.")
+
+          replacement = r"""  async function inspectProject() {
+              const projectFiles = getCurrentProjectFiles()
+
+              if (!projectFiles.length) {
+                const result = {
+                  status: 'Needs files',
+                  projectType: 'Unknown',
+                  filesFound: 0,
+                  checks: [
+                    {
+                      name: 'Project files',
+                      value: 'Missing',
+                      good: false
+                    },
+                    {
+                      name: 'Android project',
+                      value: 'Not detected',
+                      good: false
+                    }
+                  ],
+                  compatibility: 'Not checked',
+                  compatibilityChecks: []
+                }
+
+                setInspection(result)
+
+                setBuildLog([
+                  'BUILD CONSOLE',
+                  'Inspection started.',
+                  'No project files are currently available.',
+                  'Upload a ZIP or use a project folder first.'
+                ])
+
+                return result
+              }
+
+              const names = projectFiles.map(
+                file =>
+                  (file.path || file.name)
+                    .replace(/\\/g, '/')
+                    .toLowerCase()
+              )
+
+              const has = pattern =>
+                names.some(name => pattern.test(name))
+
+              const android =
+                has(/(^|\/)gradlew(\.bat)?$/) ||
+                has(/(^|\/)settings\.gradle(\.kts)?$/) ||
+                has(/(^|\/)app\/build\.gradle(\.kts)?$/) ||
+                has(/(^|\/)androidmanifest\.xml$/)
+
+              const checks = [
+                {
+                  name: 'Project files',
+                  value: String(projectFiles.length),
+                  good: true
+                },
+                {
+                  name: 'Project type',
+                  value: android ? 'Android' : 'Unknown / Other',
+                  good: android
+                },
+                {
+                  name: 'Gradle wrapper',
+                  value: has(/(^|\/)gradlew$/)
+                    ? 'Found'
+                    : 'Missing',
+                  good: has(/(^|\/)gradlew$/)
+                },
+                {
+                  name: 'Gradle wrapper JAR',
+                  value: has(
+                    /(^|\/)gradle\/wrapper\/gradle-wrapper\.jar$/
+                  )
+                    ? 'Found'
+                    : 'Missing',
+                  good: has(
+                    /(^|\/)gradle\/wrapper\/gradle-wrapper\.jar$/
+                  )
+                },
+                {
+                  name: 'Wrapper properties',
+                  value: has(
+                    /(^|\/)gradle\/wrapper\/gradle-wrapper\.properties$/
+                  )
+                    ? 'Found'
+                    : 'Missing',
+                  good: has(
+                    /(^|\/)gradle\/wrapper\/gradle-wrapper\.properties$/
+                  )
+                },
+                {
+                  name: 'settings.gradle',
+                  value: has(
+                    /(^|\/)settings\.gradle(\.kts)?$/
+                  )
+                    ? 'Found'
+                    : 'Missing',
+                  good: has(
+                    /(^|\/)settings\.gradle(\.kts)?$/
+                  )
+                },
+                {
+                  name: 'Root build file',
+                  value: has(
+                    /(^|\/)build\.gradle(\.kts)?$/
+                  )
+                    ? 'Found'
+                    : 'Missing',
+                  good: has(
+                    /(^|\/)build\.gradle(\.kts)?$/
+                  )
+                },
+                {
+                  name: 'App build file',
+                  value: has(
+                    /(^|\/)app\/build\.gradle(\.kts)?$/
+                  )
+                    ? 'Found'
+                    : 'Missing',
+                  good: has(
+                    /(^|\/)app\/build\.gradle(\.kts)?$/
+                  )
+                },
+                {
+                  name: 'AndroidManifest.xml',
+                  value: has(
+                    /(^|\/)androidmanifest\.xml$/
+                  )
+                    ? 'Found'
+                    : 'Missing',
+                  good: has(
+                    /(^|\/)androidmanifest\.xml$/
+                  )
+                }
+              ]
+
+              const ready =
+                android &&
+                checks
+                  .slice(2)
+                  .every(item => item.good)
+
+              const result = {
+                status: ready
+                  ? 'Ready for compatibility'
+                  : 'Needs preparation',
+                projectType: android
+                  ? 'Android'
+                  : 'Unknown / Other',
+                filesFound: projectFiles.length,
+                checks,
+                compatibility: 'Not checked',
+                compatibilityChecks: []
+              }
+
+              setInspection(result)
+
+              setBuildLog([
+                'BUILD CONSOLE',
+                `Inspection started: ${currentProject}`,
+                `Project type detected: ${result.projectType}`,
+                `Files found: ${projectFiles.length}`,
+                ready
+                  ? 'Inspection complete: project structure is ready for compatibility checking.'
+                  : 'Inspection complete: project requires preparation before remote compilation.'
+              ])
+
+              return result
+            }
+
+            function runCompatibilityCheck(currentInspection = inspection) {
+              if (currentInspection.projectType !== 'Android') {
+                const result = {
+                  compatibility: 'Not compatible',
+                  compatibilityChecks: [
+                    {
+                      name: 'Target',
+                      value: buildTarget,
+                      good: false
+                    },
+                    {
+                      name: 'Android project',
+                      value: 'Not detected',
+                      good: false
+                    }
+                  ]
+                }
+
+                setInspection(previous => ({
+                  ...previous,
+                  ...result
+                }))
+
+                return result
+              }
+
+              const wrapperOk =
+                currentInspection.checks.find(
+                  item => item.name === 'Gradle wrapper'
+                )?.good === true
+
+              const jarOk =
+                currentInspection.checks.find(
+                  item => item.name === 'Gradle wrapper JAR'
+                )?.good === true
+
+              const structureOk =
+                currentInspection.status ===
+                'Ready for compatibility'
+
+              const checks = [
+                {
+                  name: 'Target',
+                  value: buildTarget,
+                  good: buildTarget === 'Android APK'
+                },
+                {
+                  name: 'Gradle wrapper',
+                  value: wrapperOk
+                    ? 'Compatible'
+                    : 'Missing',
+                  good: wrapperOk
+                },
+                {
+                  name: 'Gradle wrapper JAR',
+                  value: jarOk
+                    ? 'Compatible'
+                    : 'Missing',
+                  good: jarOk
+                },
+                {
+                  name: 'Android project structure',
+                  value: structureOk
+                    ? 'Supported'
+                    : 'Needs preparation',
+                  good: structureOk
+                },
+                {
+                  name: 'Build environment',
+                  value: 'Java 17 + Android SDK 36',
+                  good: true
+                }
+              ]
+
+              const compatible =
+                checks.every(item => item.good)
+
+              const result = {
+                compatibility: compatible
+                  ? 'Compatible'
+                  : 'Needs preparation',
+                compatibilityChecks: checks
+              }
+
+              setInspection(previous => ({
+                ...previous,
+                ...result
+              }))
+
+              setBuildLog(previous => [
+                ...previous,
+                'Compatibility check started.',
+                ...checks.map(
+                  item =>
+                    `${item.name}: ${item.value}`
+                ),
+                compatible
+                  ? 'Compatibility result: READY FOR PREPARATION'
+                  : 'Compatibility result: PROJECT NEEDS PREPARATION'
+              ])
+
+              return result
+            }
+
+            async function startBuild() {
+              if (buildStatus === 'Checking...') {
+                return
+              }
+
+              setActivePage('build')
+              setBuildStatus('Checking...')
+
+              const result =
+                await inspectProject()
+
+              const compatibility =
+                runCompatibilityCheck(result)
+
+              if (
+                compatibility.compatibility !==
+                'Compatible'
+              ) {
+                setBuildStatus('Needs preparation')
+                return
+              }
+
+              setBuildStatus('Prepared')
+
+              setBuildLog(previous => [
+                ...previous,
+                'Resource check: project structure is available.',
+                'Preparation stage is ready.',
+                'Remote compilation will use the prepared project workspace in the next build connection stage.'
+              ])
+            }
+
+          """
+
+          text = text[:start] + replacement + text[end:]
+
+          # ---------------------------------------------------------
+          # 3. Pass inspection data into BuildPage
+          # ---------------------------------------------------------
+
+          old = """            buildHistory={buildHistory}
+          />"""
+
+          new = """            buildHistory={buildHistory}
+            inspection={inspection}
+            inspectProject={inspectProject}
+            runCompatibilityCheck={runCompatibilityCheck}
+          />"""
+
+          if old not in text:
+              raise SystemExit("Could not find BuildPage properties.")
+
+          text = text.replace(old, new, 1)
+
+          # ---------------------------------------------------------
+          # 4. Add props to BuildPage
+          # ---------------------------------------------------------
+
+          old = """  buildHistory
+}) {"""
+
+          new = """  buildHistory,
+  inspection,
+  inspectProject,
+  runCompatibilityCheck
+}) {"""
+
+          if old not in text:
+              raise SystemExit("Could not find BuildPage signature.")
+
+          text = text.replace(old, new, 1)
+
+          # ---------------------------------------------------------
+          # 5. Add Inspection / Compatibility panel
+          # ---------------------------------------------------------
+
+          marker = """        <section className="panel">
+          <PanelHeader title="Build History" """
+
+          position = text.find(marker)
+
+          if position == -1:
+              raise SystemExit("Could not find Build History panel.")
+
+          panel = """        <section className="panel">
+
+          <PanelHeader
+            title="Project Inspection"
+            subtitle={inspection.status}
+          />
+
+          <div className="status-list">
+
+            <StatusRow
+              name="Project Type"
+              value={inspection.projectType}
+              good={inspection.projectType === 'Android'}
+            />
+
+            <StatusRow
+              name="Files Found"
+              value={String(inspection.filesFound)}
+              good={inspection.filesFound > 0}
+            />
+
+            <StatusRow
+              name="Compatibility"
+              value={inspection.compatibility}
+              good={inspection.compatibility === 'Compatible'}
+            />
+
+          </div>
+
+          {inspection.checks.length > 0 && (
+            <div
+              className="status-list"
+              style={{ marginTop: '1rem' }}
+            >
+              {inspection.checks.map(
+                (item, index) => (
+                  <StatusRow
+                    key={item.name + index}
+                    name={item.name}
+                    value={item.value}
+                    good={item.good}
+                  />
+                )
+              )}
+            </div>
+          )}
+
+          <div
+            className="quick-actions"
+            style={{ marginTop: '1rem' }}
+          >
+
+            <button
+              className="secondary-button"
+              onClick={inspectProject}
+            >
+              Inspect Project
+            </button>
+
+            <button
+              className="secondary-button"
+              onClick={() =>
+                runCompatibilityCheck(inspection)
+              }
+              disabled={
+                inspection.status === 'Not run' ||
+                inspection.projectType !== 'Android'
+              }
+            >
+              Check Compatibility
+            </button>
+
+          </div>
+
+          {inspection.compatibilityChecks.length > 0 && (
+            <div
+              className="flow-note"
+              style={{ marginTop: '1rem' }}
+            >
+              {inspection.compatibilityChecks.map(
+                (item, index) => (
+                  <div
+                    key={
+                      item.name +
+                      '-compat-' +
+                      index
+                    }
+                  >
+                    {item.good ? '✓' : '✗'}{' '}
+                    {item.name}: {item.value}
+                  </div>
+                )
+              )}
+            </div>
+          )}
+
+        </section>
+
+"""
+
+          text = text[:position] + panel + text[position:]
+
+          path.write_text(text, encoding="utf-8")
+
+          print("Inspection and Compatibility stage applied successfully.")
+
+      - name: Verify WBA source
+        shell: bash
+        run: |
+          set -e
+
+          test -f src/App.jsx
+
+          grep -q "inspectProject" src/App.jsx
+          grep -q "runCompatibilityCheck" src/App.jsx
+          grep -q "Project Inspection" src/App.jsx
+
+          echo "Inspection stage found."
+          echo "Compatibility stage found."
+
+      - name: Build WBA
+        shell: bash
+        run: |
+          set -e
+
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
+
+          npm run build
+
+          test -f dist/index.html
+
+      - name: Commit updated WBA
+        shell: bash
+        run: |
+          set -e
+
+          git config user.name "OU The Builder"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add src/App.jsx
+
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+
+          git commit -m "Add real project inspection and compatibility stages"
+          git push
+
+          echo "=========================================="
+          echo "WBA UPDATED"
+          echo "=========================================="
