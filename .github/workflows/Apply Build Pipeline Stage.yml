@@ -1,0 +1,362 @@
+name: Apply Build Pipeline Stage
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Update WBA pipeline
+        shell: bash
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+
+          # ============================================================
+          # UPDATE APP.JSX
+          # ============================================================
+
+          path = Path("src/App.jsx")
+          text = path.read_text()
+
+          if "const [inspectionStage" not in text:
+              marker = "  const [buildType, setBuildType] = useState('Debug')"
+
+              addition = """  const [buildType, setBuildType] = useState('Debug')
+  const [inspectionStage, setInspectionStage] = useState('Ready')
+  const [inspectionResult, setInspectionResult] = useState(null)
+  const [compatibilityResult, setCompatibilityResult] = useState(null)
+  const [resourceResult, setResourceResult] = useState(null)
+  const [prepareResult, setPrepareResult] = useState(null)"""
+
+              if marker not in text:
+                  raise SystemExit("Build state marker not found")
+
+              text = text.replace(marker, addition, 1)
+
+          # ------------------------------------------------------------
+          # Replace old browser build simulation
+          # ------------------------------------------------------------
+
+          start_marker = "  function startBuild() {"
+          end_marker = "  function sendChat() {"
+
+          start = text.find(start_marker)
+          end = text.find(end_marker)
+
+          if start < 0 or end < 0 or end <= start:
+              raise SystemExit("Build function markers not found")
+
+          pipeline = r'''  function inspectProject() {
+    const projectFiles = getCurrentProjectFiles()
+
+    const paths = projectFiles.map(file =>
+      (file.path || file.name || '').replace(/\\\\/g, '/')
+    )
+
+    const names = paths.map(path =>
+      path.split('/').pop().toLowerCase()
+    )
+
+    const checks = [
+      {
+        name: 'Android project structure',
+        ok:
+          names.includes('settings.gradle') ||
+          names.includes('settings.gradle.kts') ||
+          paths.some(path =>
+            /(^|\\/)app\\/build\\.gradle(?:\\.kts)?$/i.test(path)
+          )
+      },
+      {
+        name: 'Gradle wrapper (gradlew)',
+        ok: names.includes('gradlew')
+      },
+      {
+        name: 'Gradle wrapper JAR',
+        ok: paths.some(path =>
+          /(^|\\/)gradle\\/wrapper\\/gradle-wrapper\\.jar$/i.test(path)
+        )
+      },
+      {
+        name: 'Gradle settings',
+        ok:
+          names.includes('settings.gradle') ||
+          names.includes('settings.gradle.kts')
+      },
+      {
+        name: 'Root Gradle build file',
+        ok:
+          names.includes('build.gradle') ||
+          names.includes('build.gradle.kts')
+      },
+      {
+        name: 'App Gradle build file',
+        ok: paths.some(path =>
+          /(^|\\/)app\\/build\\.gradle(?:\\.kts)?$/i.test(path)
+        )
+      },
+      {
+        name: 'AndroidManifest.xml',
+        ok: paths.some(path =>
+          /(^|\\/)src\\/main\\/AndroidManifest\\.xml$/i.test(path)
+        )
+      }
+    ]
+
+    const missing = checks
+      .filter(item => !item.ok)
+      .map(item => item.name)
+
+    const result = {
+      status: missing.length
+        ? 'Needs preparation'
+        : 'Inspection complete',
+
+      project: currentProject,
+      fileCount: projectFiles.length,
+      checks,
+      missing,
+      inspectedAt: new Date().toISOString()
+    }
+
+    setInspectionResult(result)
+    setInspectionStage('Inspected')
+
+    setBuildLog([
+      'BUILD PIPELINE',
+      'INSPECT: ' + currentProject,
+      'Files discovered: ' + projectFiles.length,
+      'Inspection result: ' + result.status,
+
+      ...checks.map(item =>
+        'Inspect: ' +
+        item.name +
+        ' → ' +
+        (item.ok ? 'FOUND' : 'MISSING')
+      )
+    ])
+
+    return result
+  }
+
+  function runCompatibilityCheck(result) {
+    const source =
+      result ||
+      inspectionResult ||
+      inspectProject()
+
+    const wrapper = source.checks.find(
+      item => item.name === 'Gradle wrapper (gradlew)'
+    )
+
+    const structure = source.checks.find(
+      item => item.name === 'Android project structure'
+    )
+
+    const checks = [
+      {
+        name: 'Target',
+        value: buildTarget,
+        ok:
+          buildTarget === 'Android APK' ||
+          buildTarget === 'Web App'
+      },
+      {
+        name: 'Remote environment',
+        value:
+          buildTarget === 'Android APK'
+            ? 'Java 17 + Android SDK 36'
+            : 'Node.js 24 + GitHub Pages',
+        ok: true
+      },
+      {
+        name: 'Gradle wrapper',
+        value: wrapper.ok ? 'Available' : 'Missing',
+        ok: wrapper.ok
+      },
+      {
+        name: 'Project structure',
+        value: structure.ok ? 'Recognized' : 'Not recognized',
+        ok: structure.ok
+      }
+    ]
+
+    const blocking = checks
+      .filter(item => !item.ok)
+      .map(item => item.name)
+
+    const resultData = {
+      status: blocking.length
+        ? 'Not ready'
+        : 'Compatible',
+
+      checks,
+      blocking,
+      checkedAt: new Date().toISOString()
+    }
+
+    setCompatibilityResult(resultData)
+    setInspectionStage('Compatibility checked')
+
+    setBuildLog(previous => [
+      ...previous,
+
+      'COMPATIBILITY CHECK',
+
+      ...checks.map(item =>
+        'Compatibility: ' +
+        item.name +
+        ' → ' +
+        item.value
+      ),
+
+      'Compatibility result: ' +
+      resultData.status
+    ])
+
+    return resultData
+  }
+
+  function runResourceCheck(result) {
+    const source =
+      result ||
+      inspectionResult ||
+      inspectProject()
+
+    const projectFiles = getCurrentProjectFiles()
+
+    const resourceFiles = projectFiles.filter(file =>
+      /\.(png|jpe?g|gif|webp|svg|xml|json|txt|mp3|mp4|kt|java|kts|gradle|properties)$/i
+        .test(file.path || file.name || '')
+    )
+
+    const resultData = {
+      status:
+        source.missing.length
+          ? 'Missing requirements'
+          : 'Resources ready',
+
+      totalFiles: projectFiles.length,
+      resourceFiles: resourceFiles.length,
+      missing: source.missing,
+      checkedAt: new Date().toISOString()
+    }
+
+    setResourceResult(resultData)
+    setInspectionStage('Resources checked')
+
+    setBuildLog(previous => [
+      ...previous,
+      'RESOURCE CHECK',
+      'Project files: ' + projectFiles.length,
+      'Recognized resource/source files: ' + resourceFiles.length,
+      'Missing requirements: ' + source.missing.length,
+      'Resource result: ' + resultData.status
+    ])
+
+    return resultData
+  }
+
+  function prepareBuild(result, compatibility) {
+    const resource =
+      result ||
+      resourceResult
+
+    const compatible =
+      compatibility ||
+      compatibilityResult
+
+    if (
+      !resource ||
+      resource.missing.length ||
+      !compatible ||
+      compatible.blocking.length
+    ) {
+      const blocked = {
+        status: 'Blocked',
+        reason:
+          'Required project structure or compatibility requirements are missing.',
+        preparedAt: new Date().toISOString()
+      }
+
+      setPrepareResult(blocked)
+      setInspectionStage('Preparation blocked')
+      setBuildStatus('Ready')
+
+      setBuildLog(previous => [
+        ...previous,
+        'PREPARE BUILD',
+        'Preparation blocked.',
+        'Original project source was not modified.',
+        'Add the missing requirements and run the pipeline again.'
+      ])
+
+      return blocked
+    }
+
+    const projectFiles = getCurrentProjectFiles()
+
+    const manifest = {
+      format: 'OU The Builder Prepared Build Package',
+      version: '0.1.0',
+      preparedAt: new Date().toISOString(),
+      project: currentProject,
+      target: buildTarget,
+      buildType,
+
+      files: projectFiles.map(file => ({
+        name: file.name,
+        path: file.path || file.name,
+        size: file.size,
+        type: file.type || 'Unknown'
+      }))
+    }
+
+    const prepared = {
+      status: 'Ready for remote build',
+      fileCount: projectFiles.length,
+      manifest,
+      preparedAt: manifest.preparedAt
+    }
+
+    setPrepareResult(prepared)
+    setInspectionStage('Prepared')
+    setBuildStatus('Ready')
+
+    setBuildLog(previous => [
+      ...previous,
+      'PREPARE BUILD',
+      'Prepared ' + projectFiles.length + ' project file(s).',
+      'Original project source remains unchanged.',
+      'Preparation result: READY FOR REMOTE BUILD',
+      'Next: upload the prepared project to cloud storage and start GitHub Actions.'
+    ])
+
+    setBuildHistory(previous => [
+      {
+        id: 'build-' + Date.now(),
+        project: currentProject,
+        target: buildTarget,
+        type: buildType,
+        status: 'Prepared',
+        completedAt: prepared.preparedAt,
+        fileCount: projectFiles.length
+      },
+      ...previous
+    ].slice(0, 20))
+
+    setProjects(previous =>
+      previous.map(project =>
+        project.name === currentProject
+          ? {
+              ...project,
+              status: 'Build
