@@ -1,0 +1,249 @@
+name: Repair and Deploy OU The Builder WBA
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: ou-the-builder-pages
+  cancel-in-progress: true
+
+jobs:
+  repair-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v5
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Repair App.jsx startup error
+        shell: bash
+        run: |
+          set -e
+
+          python3 <<'PY'
+          from pathlib import Path
+
+          path = Path("src/App.jsx")
+
+          if not path.exists():
+              raise SystemExit("ERROR: src/App.jsx was not found.")
+
+          text = path.read_text(encoding="utf-8")
+
+          broken = "<strong>{getCurrentProjectFiles().length}</strong>"
+          fixed = "<strong>{files.length}</strong>"
+
+          broken_count = text.count(broken)
+
+          print(f"Broken expression occurrences: {broken_count}")
+
+          if broken_count > 0:
+              text = text.replace(broken, fixed)
+              path.write_text(text, encoding="utf-8")
+              print("FIX APPLIED: HomePage now uses the existing files prop.")
+          elif fixed in text:
+              print("FIX ALREADY PRESENT: App.jsx is already corrected.")
+          else:
+              raise SystemExit(
+                  "ERROR: Neither the broken expression nor the expected fixed expression was found."
+              )
+          PY
+
+      - name: Restore normal React entry point
+        shell: bash
+        run: |
+          set -e
+
+          cat > src/main.jsx <<'EOF'
+          import React from 'react'
+          import ReactDOM from 'react-dom/client'
+          import App from './App.jsx'
+          import './App.css'
+
+          ReactDOM.createRoot(document.getElementById('root')).render(
+            <React.StrictMode>
+              <App />
+            </React.StrictMode>
+          )
+          EOF
+
+          echo "Normal src/main.jsx restored."
+
+      - name: Verify source repair
+        shell: bash
+        run: |
+          set -e
+
+          echo "Checking App.jsx..."
+
+          if grep -Fq '<strong>{getCurrentProjectFiles().length}</strong>' src/App.jsx; then
+            echo "ERROR: Broken expression is still present."
+            exit 1
+          fi
+
+          if ! grep -Fq '<strong>{files.length}</strong>' src/App.jsx; then
+            echo "ERROR: Fixed expression was not found."
+            exit 1
+          fi
+
+          echo "SUCCESS: App.jsx contains the corrected expression."
+
+          echo
+          echo "Checking main.jsx..."
+
+          if grep -Fq 'WBA Startup Error' src/main.jsx; then
+            echo "ERROR: Diagnostic main.jsx is still present."
+            exit 1
+          fi
+
+          echo "SUCCESS: Normal main.jsx is present."
+
+      - name: Show source changes
+        shell: bash
+        run: |
+          echo "===== GIT STATUS ====="
+          git status --short
+
+          echo
+          echo "===== DIFF ====="
+          git diff -- src/App.jsx src/main.jsx
+
+      - name: Commit repair to main
+        shell: bash
+        run: |
+          set -e
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add src/App.jsx src/main.jsx
+
+          if git diff --cached --quiet; then
+            echo "No source changes need to be committed."
+          else
+            git commit -m "Fix WBA startup error"
+            git push origin main
+            echo "SOURCE FIX COMMITTED AND PUSHED."
+          fi
+
+      - name: Verify committed source
+        shell: bash
+        run: |
+          set -e
+
+          git fetch origin main
+
+          echo "Local HEAD:"
+          git rev-parse HEAD
+
+          echo
+          echo "Origin main:"
+          git rev-parse origin/main
+
+          if [ "$(git rev-parse HEAD)" != "$(git rev-parse origin/main)" ]; then
+            echo "ERROR: Local HEAD and origin/main do not match."
+            exit 1
+          fi
+
+          echo "SUCCESS: Repair commit is on origin/main."
+
+          echo
+          echo "Checking committed App.jsx..."
+
+          if git show origin/main:src/App.jsx | grep -Fq '<strong>{getCurrentProjectFiles().length}</strong>'; then
+            echo "ERROR: Broken expression still exists in origin/main."
+            exit 1
+          fi
+
+          if ! git show origin/main:src/App.jsx | grep -Fq '<strong>{files.length}</strong>'; then
+            echo "ERROR: Fixed expression is missing from origin/main."
+            exit 1
+          fi
+
+          echo "SUCCESS: GitHub main branch contains the fix."
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          set -e
+
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
+
+      - name: Build WBA
+        shell: bash
+        run: |
+          set -e
+
+          npm run build
+
+          if [ ! -f dist/index.html ]; then
+            echo "ERROR: dist/index.html was not created."
+            exit 1
+          fi
+
+          echo "Production build completed."
+
+      - name: Verify production bundle
+        shell: bash
+        run: |
+          set -e
+
+          echo "Searching production JavaScript for broken expression..."
+
+          if grep -R "getCurrentProjectFiles().length" dist/assets 2>/dev/null; then
+            echo "ERROR: Broken expression still exists in production bundle."
+            exit 1
+          fi
+
+          echo "SUCCESS: Broken expression is absent from production bundle."
+
+          echo
+          echo "Production files:"
+          find dist -maxdepth 3 -type f | sort
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v6
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./dist
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5
+
+      - name: Final verification
+        shell: bash
+        run: |
+          echo "=========================================="
+          echo "OU THE BUILDER WBA REPAIR COMPLETE"
+          echo "=========================================="
+          echo
+          echo "Repository:"
+          echo "https://github.com/OUTheBuilder/OUTheBuilderWBA"
+          echo
+          echo "GitHub Pages:"
+          echo "https://outhebuilder.github.io/OUTheBuilderWBA/"
+          echo
+          echo "The source fix was committed BEFORE deployment."
+          echo "The production bundle was checked for the old error."
+          echo "=========================================="
