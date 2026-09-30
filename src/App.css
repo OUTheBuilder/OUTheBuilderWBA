@@ -1,0 +1,529 @@
+
+/* ==========================================
+   REFERENCE HOME SCREEN — 720 x 1600 TARGET
+   Visual styling only
+   ========================================== */
+
+.reference-home {
+  --ref-blue: #087cf0;
+  --ref-cyan: #08bfe9;
+  --ref-border: #0759b8;
+  --ref-panel: #061b35;
+  --ref-text: #f3f6ff;
+  color: var(--ref-text);
+  padding-bottom: 150px;
+}
+
+.reference-home .hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  min-height: 225px;
+  padding: 24px 20px;
+  margin-bottom: 16px;
+  border: 1px solid var(--ref-border);
+  border-radius: 15px;
+  background:
+    linear-gradient(135deg, #061a34, #092958 75%, #0757cb);
+}
+
+.reference-home .hero-copy {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.reference-home .hero h1 {
+  font-size: clamp(23px, 4.7vw, 34px);
+  line-height: 1.15;
+  letter-spacing: -0.6px;
+  margin: 0 0 14px;
+}
+
+.reference-home .hero h1 span {
+  color: #08b9e9;
+  overflow-wrap: anywhere;
+}
+
+.reference-home .hero p {
+  font-size: clamp(12px, 2.4vw, 17px);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.reference-home .hero-orb {
+  flex: 0 0 118px;
+  width: 118px;
+  height: 145px;
+  margin: 0;
+  border: 2px solid #f3c400;
+  border-radius: 25px;
+  background: #05070b;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  box-shadow: 0 0 18px #087cf055;
+}
+
+.reference-home .hero-orb div {
+  width: auto;
+  height: auto;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  font-size: 49px;
+  line-height: 1;
+  font-weight: 950;
+  letter-spacing: -4px;
+}
+
+.reference-home .hero-orb strong {
+  font-size: 15px;
+  color: #f5c900;
+  text-align: center;
+}
+
+/* AI Chat panel */
+
+.reference-home .home-chat-panel {
+  display: block;
+  padding: 14px;
+  margin-bottom: 16px;
+  border: 1px solid var(--ref-border);
+  border-radius: 15px;
+  background: var(--ref-panel);
+}
+
+.reference-home .home-chat-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.reference-home .home-chat-icon {
+  flex: 0 0 50px;
+  height: 50px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  background: #087cf0;
+  font-size: 25px;
+}
+
+.reference-home .home-chat-heading h2 {
+  margin: 1px 0 3px;
+  font-size: 25px;
+}
+
+.reference-home .home-chat-heading p {
+  margin: 0;
+  color: #b9cce5;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.reference-home .home-chat-input {
+  display: flex;
+  align-items: stretch;
+  gap: 9px;
+  margin-bottom: 12px;
+}
+
+.reference-home .home-chat-input input {
+  width: 0;
+  min-width: 0;
+  flex: 1;
+  height: 60px;
+  padding: 0 17px;
+  border: 1px solid #087cf0;
+  border-radius: 11px;
+  background: #071a32;
+  color: white;
+  font-size: 14px;
+}
+
+.reference-home .home-chat-input input::placeholder {
+  color: #a9bdd7;
+}
+
+.reference-home .home-chat-input button {
+  flex: 0 0 52px;
+  border: 0;
+  border-radius: 11px;
+  background: #087cf0;
+  color: white;
+  font-size: 26px;
+}
+
+.reference-home .agent-select-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.reference-home .agent-select {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 7px;
+  min-width: 0;
+  min-height: 53px;
+  padding: 8px 10px;
+  border: 1px solid #087cf0;
+  border-radius: 11px;
+  background: #071a32;
+  color: #d9e8fc;
+  font-size: 12px;
+}
+
+.reference-home .agent-select span:nth-child(2) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reference-home .agent-symbol {
+  color: #08bfe9;
+  font-size: 22px;
+}
+
+/* Main Features */
+
+.reference-home .main-features-panel {
+  display: block;
+  padding: 14px;
+  margin-bottom: 18px;
+  border: 1px solid var(--ref-border);
+  border-radius: 15px;
+  background: var(--ref-panel);
+}
+
+.reference-home .home-section-heading h2 {
+  font-size: 26px;
+  margin: 0 0 3px;
+}
+
+.reference-home .home-section-heading p {
+  margin: 0 0 13px;
+  color: #b9cce5;
+  font-size: 14px;
+}
+
+.reference-home .dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+}
+
+.reference-home .feature-card {
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr) 10px;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  min-height: 103px;
+  padding: 10px;
+  text-align: left;
+  border: 1px solid #0759b8;
+  border-radius: 12px;
+  background: #092344;
+  color: var(--ref-text);
+}
+
+.reference-home .feature-icon {
+  width: 58px;
+  height: 64px;
+  border-radius: 11px;
+  display: grid;
+  place-items: center;
+  font-size: 25px;
+  font-weight: 700;
+}
+
+.reference-home .feature-card h3 {
+  margin: 0 0 5px;
+  font-size: 15px;
+  line-height: 1.2;
+}
+
+.reference-home .feature-card p {
+  margin: 0;
+  font-size: 10px;
+  line-height: 1.45;
+  color: #c0d0e5;
+  overflow-wrap: anywhere;
+}
+
+.reference-home .feature-arrow {
+  font-size: 22px;
+  color: #b8d9ff;
+}
+
+.reference-home .feature-icon.green {
+  background: #00c9a7;
+}
+
+.reference-home .feature-card.green .feature-icon {
+  background: #00c9a7;
+}
+
+.reference-home .feature-card.purple .feature-icon {
+  background: #8b12e8;
+}
+
+.reference-home .feature-card.cyan .feature-icon {
+  background: #079ee8;
+}
+
+.reference-home .feature-card.yellow .feature-icon {
+  background: #f1b900;
+}
+
+.reference-home .feature-card.drive .feature-icon {
+  background: #f5f7fc;
+  color: #0b78dc;
+}
+
+.reference-home .feature-card.pink .feature-icon {
+  background: #ed168b;
+}
+
+.reference-home .feature-card.gray .feature-icon {
+  background: #71849c;
+}
+
+/* System Status at the bottom */
+
+.reference-home .home-system-status {
+  position: fixed;
+  left: 18px;
+  right: 18px;
+  bottom: 12px;
+  z-index: 80;
+  padding: 12px 14px 14px;
+  border: 1px solid #0759b8;
+  border-radius: 14px;
+  background: #061b35;
+  box-shadow: 0 0 25px #0008;
+}
+
+.reference-home .system-status-heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.reference-home .system-status-heading h2 {
+  margin: 0;
+  white-space: nowrap;
+  font-size: 16px;
+}
+
+.reference-home .system-status-heading > span {
+  flex: 1;
+  height: 1px;
+  background: #0759b8;
+}
+
+.reference-home .system-status-grid {
+  display: grid;
+  grid-template-columns: 1.25fr 1.2fr 1fr .9fr;
+  gap: 8px;
+}
+
+.reference-home .system-status-item {
+  min-width: 0;
+  min-height: 75px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 7px;
+  padding: 9px;
+  border: 1px solid #0759b8;
+  border-radius: 11px;
+  background: #092344;
+}
+
+.reference-home .system-status-item > span {
+  color: #b7cce6;
+  font-size: 11px;
+}
+
+.reference-home .system-status-item strong {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  font-size: 11px;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.reference-home .system-status-item .dot {
+  display: inline-block;
+  flex: 0 0 10px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #00d4ad;
+}
+
+/* Header and sidebar proportions for 720px-wide screens */
+
+@media (min-width: 601px) and (max-width: 820px) {
+  .topbar {
+    height: 123px;
+    padding: 0 18px 0 30px;
+    gap: 15px;
+  }
+
+  .topbar::before {
+    flex: 0 0 98px;
+    width: 98px;
+    height: 98px;
+    border-radius: 20px;
+    font-size: 34px;
+  }
+
+  .topbar-title {
+    flex: 1;
+  }
+
+  .topbar-title::before {
+    font-size: 46px;
+    letter-spacing: -1px;
+  }
+
+  .topbar-title::after {
+    margin-top: 9px;
+    font-size: 13px;
+    letter-spacing: 1.5px;
+    white-space: nowrap;
+  }
+
+  .topbar-project {
+    display: none;
+  }
+
+  .menu-button {
+    display: block !important;
+    padding: 4px;
+    border: 0;
+    background: transparent;
+    color: #08bfe9;
+    font-size: 34px;
+  }
+
+  .sidebar {
+    display: block !important;
+    top: 123px;
+    width: 165px;
+    height: calc(100vh - 123px);
+    padding: 10px 8px;
+    transform: none !important;
+  }
+
+  .sidebar .brand,
+  .sidebar .online-badge,
+  .sidebar .nav-title {
+    display: none !important;
+  }
+
+  .navigation {
+    padding-top: 4px;
+  }
+
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    min-height: 60px;
+    margin-bottom: 7px;
+    padding: 10px 8px;
+    font-size: 14px;
+    border-radius: 10px;
+  }
+
+  .nav-icon {
+    flex: 0 0 28px;
+    font-size: 25px;
+  }
+
+  .main-content {
+    margin-left: 165px !important;
+    width: calc(100% - 165px) !important;
+    padding-top: 123px;
+  }
+
+  .page-container {
+    width: 100%;
+    padding: 14px 15px 20px;
+  }
+
+  .reference-home .hero {
+    min-height: 225px;
+    padding: 18px;
+  }
+
+  .reference-home .hero-orb {
+    flex-basis: 110px;
+    width: 110px;
+    height: 150px;
+  }
+
+  .reference-home .hero-orb div {
+    font-size: 45px;
+  }
+}
+
+/* Smaller phones */
+
+@media (max-width: 600px) {
+  .reference-home {
+    padding-bottom: 230px;
+  }
+
+  .reference-home .hero {
+    min-height: 180px;
+    padding: 15px;
+  }
+
+  .reference-home .hero-orb {
+    flex-basis: 76px;
+    width: 76px;
+    height: 105px;
+  }
+
+  .reference-home .hero-orb div {
+    font-size: 34px;
+  }
+
+  .reference-home .hero-orb strong {
+    font-size: 10px;
+  }
+
+  .reference-home .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .reference-home .system-status-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .reference-home .home-system-status {
+    left: 8px;
+    right: 8px;
+    bottom: 8px;
+  }
+
+  .reference-home .system-status-item {
+    min-height: 58px;
+  }
+}
