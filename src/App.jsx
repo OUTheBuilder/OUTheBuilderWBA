@@ -228,7 +228,7 @@ function App() {
 
   function chooseProject(project) {
     setCurrentProject(project.name)
-    setActivePage('home')
+    setActivePage('files')
   }
 
   function openFilePicker() {
