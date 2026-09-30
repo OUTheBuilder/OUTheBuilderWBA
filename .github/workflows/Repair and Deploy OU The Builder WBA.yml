@@ -1,0 +1,309 @@
+name: Repair and Deploy OU The Builder WBA
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: ou-the-builder-pages
+  cancel-in-progress: true
+
+jobs:
+  repair-build-deploy:
+    name: Repair, Verify, Build and Deploy
+    runs-on: ubuntu-latest
+
+    steps:
+
+      # =========================================================
+      # 1. Checkout the real main branch
+      # =========================================================
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          ref: main
+          fetch-depth: 0
+
+      # =========================================================
+      # 2. Configure Node.js 24
+      # =========================================================
+      - name: Setup Node.js 24
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      # =========================================================
+      # 3. Repair App.jsx
+      #
+      # HomePage receives "files" as a prop.
+      #
+      # The broken code was:
+      #
+      # getCurrentProjectFiles().length
+      #
+      # That function exists inside App(), not HomePage().
+      #
+      # Correct code:
+      #
+      # files.length
+      # =========================================================
+      - name: Repair App.jsx
+        shell: bash
+        run: |
+          set -e
+
+          FILE="src/App.jsx"
+
+          echo "Checking $FILE ..."
+
+          if [ ! -f "$FILE" ]; then
+            echo "ERROR: $FILE does not exist."
+            exit 1
+          fi
+
+          python3 <<'PY'
+          from pathlib import Path
+
+          path = Path("src/App.jsx")
+          text = path.read_text(encoding="utf-8")
+
+          broken = "<strong>{getCurrentProjectFiles().length}</strong>"
+          fixed = "<strong>{files.length}</strong>"
+
+          broken_count = text.count(broken)
+
+          print(f"Broken references found: {broken_count}")
+
+          if broken_count == 0:
+              if fixed in text:
+                  print("The App.jsx fix is already present.")
+              else:
+                  raise SystemExit(
+                      "ERROR: Neither the broken nor fixed expression was found."
+                  )
+          else:
+              text = text.replace(broken, fixed)
+              path.write_text(text, encoding="utf-8")
+              print("App.jsx repaired successfully.")
+          PY
+
+      # =========================================================
+      # 4. Verify App.jsx BEFORE doing anything else
+      # =========================================================
+      - name: Verify App.jsx repair
+        shell: bash
+        run: |
+          set -e
+
+          FILE="src/App.jsx"
+
+          echo "Searching for the old broken expression..."
+
+          if grep -nF \
+            '<strong>{getCurrentProjectFiles().length}</strong>' \
+            "$FILE"; then
+
+            echo
+            echo "ERROR: The broken expression still exists."
+            exit 1
+          fi
+
+          echo
+          echo "Searching for the corrected expression..."
+
+          if grep -nF \
+            '<strong>{files.length}</strong>' \
+            "$FILE"; then
+
+            echo
+            echo "SUCCESS: App.jsx contains the corrected expression."
+          else
+            echo
+            echo "ERROR: Corrected expression was not found."
+            exit 1
+          fi
+
+      # =========================================================
+      # 5. Restore normal main.jsx
+      #
+      # The previous diagnostic workflow changed main.jsx.
+      # This restores the normal React entry point.
+      # =========================================================
+      - name: Restore normal main.jsx
+        shell: bash
+        run: |
+          set -e
+
+          cat > src/main.jsx <<'EOF'
+          import React from 'react'
+          import ReactDOM from 'react-dom/client'
+          import App from './App.jsx'
+          import './App.css'
+
+          ReactDOM.createRoot(document.getElementById('root')).render(
+            <React.StrictMode>
+              <App />
+            </React.StrictMode>
+          )
+          EOF
+
+          echo "Normal main.jsx restored."
+
+      # =========================================================
+      # 6. Show the exact source changes
+      # =========================================================
+      - name: Show source changes
+        shell: bash
+        run: |
+          echo "=================================================="
+          echo "GIT STATUS"
+          echo "=================================================="
+
+          git status --short
+
+          echo
+          echo "=================================================="
+          echo "APP.JSX DIFF"
+          echo "=================================================="
+
+          git diff -- src/App.jsx
+
+          echo
+          echo "=================================================="
+          echo "MAIN.JSX DIFF"
+          echo "=================================================="
+
+          git diff -- src/main.jsx
+
+      # =========================================================
+      # 7. Install dependencies
+      # =========================================================
+      - name: Install dependencies
+        shell: bash
+        run: |
+          set -e
+
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
+
+      # =========================================================
+      # 8. Build the WBA
+      # =========================================================
+      - name: Build WBA
+        shell: bash
+        run: |
+          set -e
+
+          npm run build
+
+          if [ ! -f "dist/index.html" ]; then
+            echo "ERROR: dist/index.html was not generated."
+            exit 1
+          fi
+
+          echo
+          echo "WBA build succeeded."
+
+      # =========================================================
+      # 9. Verify generated JavaScript does not contain the
+      #    old broken reference
+      # =========================================================
+      - name: Verify production bundle
+        shell: bash
+        run: |
+          set -e
+
+          echo "Checking production JavaScript..."
+
+          if grep -R \
+            "getCurrentProjectFiles().length" \
+            dist \
+            --include='*.js'; then
+
+            echo
+            echo "ERROR: Broken reference is still present in dist."
+            exit 1
+          fi
+
+          echo
+          echo "SUCCESS: Production bundle does not contain the broken reference."
+
+      # =========================================================
+      # 10. Configure GitHub Pages
+      # =========================================================
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v6
+
+      # =========================================================
+      # 11. Upload Pages artifact
+      # =========================================================
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./dist
+
+      # =========================================================
+      # 12. Deploy Pages
+      # =========================================================
+      - name: Deploy GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5
+
+      # =========================================================
+      # 13. Commit the actual source repairs
+      #
+      # This happens only AFTER:
+      # - App.jsx was repaired
+      # - App.jsx was verified
+      # - npm build succeeded
+      # - production bundle was verified
+      # - Pages deployment succeeded
+      # =========================================================
+      - name: Commit repaired source
+        shell: bash
+        run: |
+          set -e
+
+          git config user.name "OU The Builder"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          if git diff --quiet -- src/App.jsx src/main.jsx; then
+            echo "No source changes need committing."
+            exit 0
+          fi
+
+          git add src/App.jsx src/main.jsx
+
+          git commit \
+            -m "Repair WBA startup and restore normal entry point"
+
+          git push origin main
+
+      # =========================================================
+      # 14. Final verification
+      # =========================================================
+      - name: Final verification
+        shell: bash
+        run: |
+          echo
+          echo "=================================================="
+          echo "OU THE BUILDER WBA REPAIR COMPLETE"
+          echo "=================================================="
+          echo
+          echo "App.jsx startup error fixed."
+          echo "Diagnostic main.jsx removed."
+          echo "Production build verified."
+          echo "GitHub Pages deployment completed."
+          echo
+          echo "Site:"
+          echo "https://outhebuilder.github.io/OUTheBuilderWBA/"
+          echo
+          echo "=================================================="
