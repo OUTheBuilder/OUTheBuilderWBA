@@ -1,0 +1,583 @@
+/*
+  OU THE BUILDER WBA
+  VISUAL REDESIGN
+  --------------------------------
+  Visual/UI only.
+  Does not change React logic,
+  storage, APIs, or build behavior.
+*/
+
+:root {
+  --ou-bg: #020b18;
+  --ou-panel: #06172b;
+  --ou-panel-2: #08203a;
+  --ou-blue: #1197ff;
+  --ou-cyan: #19b9ff;
+  --ou-yellow: #f4bf19;
+  --ou-border: rgba(39, 145, 255, .42);
+  --ou-text: #f5f8ff;
+  --ou-muted: #a9c0de;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  min-width: 0;
+  min-height: 100%;
+  margin: 0;
+  overflow-x: hidden;
+}
+
+body {
+  color: var(--ou-text);
+  background:
+    radial-gradient(
+      circle at 78% 12%,
+      rgba(0, 108, 255, .20),
+      transparent 28%
+    ),
+    radial-gradient(
+      circle at 52% 100%,
+      rgba(0, 156, 255, .08),
+      transparent 32%
+    ),
+    var(--ou-bg);
+}
+
+button,
+input,
+select,
+textarea {
+  max-width: 100%;
+}
+
+/* =========================================
+   TOP HEADER
+   ========================================= */
+
+.topbar {
+  position: fixed;
+  inset: 0 0 auto 0;
+  width: 100%;
+  height: 92px;
+  padding: 0 34px 0 42px;
+  z-index: 100;
+
+  display: flex;
+  align-items: center;
+  gap: 20px;
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(2, 12, 27, .99),
+      rgba(2, 13, 28, .95)
+    );
+
+  border-bottom: 1px solid rgba(20, 139, 255, .40);
+
+  box-shadow:
+    0 8px 30px rgba(0, 0, 0, .28);
+}
+
+/* OU logo */
+
+.topbar::before {
+  content: "OU";
+
+  width: 62px;
+  height: 62px;
+  flex: 0 0 62px;
+
+  display: grid;
+  place-items: center;
+
+  border: 2px solid var(--ou-yellow);
+  border-radius: 18px;
+
+  color: #fff;
+  font-size: 23px;
+  font-weight: 950;
+  letter-spacing: -2px;
+
+  background:
+    radial-gradient(
+      circle at 35% 35%,
+      #fff 0 14%,
+      #e7edf5 15% 28%,
+      transparent 29%
+    ),
+    linear-gradient(145deg, #171d25, #05070a);
+
+  box-shadow:
+    0 0 0 2px rgba(244, 191, 25, .08),
+    0 0 25px rgba(0, 139, 255, .22);
+}
+
+.topbar-title {
+  margin: 0;
+  min-width: 0;
+  line-height: 1;
+  font-size: 0;
+}
+
+.topbar-title::before {
+  content: "OU The Builder";
+
+  display: block;
+
+  font-size: clamp(25px, 3vw, 39px);
+  font-weight: 900;
+  letter-spacing: -.8px;
+
+  color: #fff;
+
+  background:
+    linear-gradient(
+      90deg,
+      #fff 0 34%,
+      #0aa9ff 54%,
+      #29c6ff 100%
+    );
+
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.topbar-title::after {
+  content: "BUILD  •  CREATE  •  BRING YOUR IDEAS TO LIFE";
+
+  display: block;
+
+  margin-top: 8px;
+
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 3px;
+
+  color: #b8d1ee;
+}
+
+.topbar-project {
+  margin-left: auto;
+  color: #8ea8c8;
+}
+
+.topbar-project strong {
+  color: #e8f2ff;
+}
+
+/* =========================================
+   SIDEBAR
+   ========================================= */
+
+.sidebar {
+  position: fixed;
+
+  top: 92px;
+  left: 0;
+  bottom: 0;
+
+  width: 225px;
+  height: calc(100vh - 92px);
+
+  padding: 28px 15px 18px;
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(3, 18, 35, .99),
+      rgba(2, 10, 22, .99)
+    );
+
+  border-right: 1px solid rgba(24, 142, 255, .28);
+
+  z-index: 90;
+}
+
+.sidebar .brand,
+.sidebar .online-badge,
+.nav-title {
+  display: none;
+}
+
+.navigation {
+  padding-top: 8px;
+}
+
+.nav-item {
+  position: relative;
+
+  min-height: 50px;
+  margin-bottom: 6px;
+  padding: 11px 14px;
+
+  border-radius: 13px;
+  border: 1px solid transparent;
+
+  color: #c1d1e7;
+  font-size: 15px;
+
+  transition:
+    background .18s ease,
+    border-color .18s ease,
+    transform .18s ease;
+}
+
+.nav-item:hover {
+  background: rgba(15, 116, 211, .14);
+  border-color: rgba(29, 145, 255, .20);
+}
+
+.nav-item.active {
+  background:
+    linear-gradient(
+      90deg,
+      rgba(0, 122, 255, .95),
+      rgba(11, 90, 201, .75)
+    );
+
+  border-color: rgba(78, 180, 255, .40);
+
+  box-shadow:
+    0 8px 22px rgba(0, 102, 255, .18);
+}
+
+.nav-item.active::before {
+  content: "";
+
+  position: absolute;
+  left: -1px;
+  top: 9px;
+  bottom: 9px;
+
+  width: 3px;
+
+  border-radius: 3px;
+
+  background: #fff;
+}
+
+.nav-icon {
+  width: 26px;
+  font-size: 23px;
+  color: #a9d6ff;
+}
+
+.nav-item.active .nav-icon {
+  color: #fff;
+}
+
+.sidebar-bottom {
+  border-top-color: rgba(33, 135, 221, .16);
+}
+
+/* =========================================
+   MAIN AREA
+   ========================================= */
+
+.main-content {
+  margin-left: 225px;
+  width: calc(100% - 225px);
+  padding-top: 92px;
+
+  background: transparent;
+}
+
+.page-container {
+  width: min(1500px, 100%);
+  margin: 0 auto;
+  padding: 28px 30px 34px;
+}
+
+/* =========================================
+   HERO / WELCOME
+   ========================================= */
+
+.hero {
+  position: relative;
+  overflow: hidden;
+
+  min-height: 266px;
+  padding: 40px 42px;
+
+  border-radius: 20px;
+  border: 1px solid rgba(35, 143, 255, .48);
+
+  background:
+    radial-gradient(
+      circle at 86% 48%,
+      rgba(0, 120, 255, .34),
+      transparent 28%
+    ),
+    linear-gradient(
+      135deg,
+      rgba(5, 31, 62, .98),
+      rgba(5, 19, 39, .98)
+    );
+
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.04),
+    0 16px 45px rgba(0,0,0,.22);
+}
+
+.hero::after {
+  content: "";
+
+  position: absolute;
+
+  right: -120px;
+  top: -130px;
+
+  width: 310px;
+  height: 310px;
+
+  border-radius: 50%;
+
+  border: 1px solid rgba(58, 185, 255, .13);
+
+  box-shadow:
+    0 0 0 28px rgba(58, 185, 255, .035),
+    0 0 0 56px rgba(58, 185, 255, .025);
+
+  pointer-events: none;
+}
+
+.eyebrow {
+  display: none;
+}
+
+.hero h1 {
+  position: relative;
+  z-index: 1;
+
+  font-size: clamp(34px, 4vw, 48px);
+  font-weight: 900;
+  line-height: 1.08;
+  letter-spacing: -.9px;
+}
+
+.hero h1 span {
+  color: #0cb5ff;
+
+  text-shadow:
+    0 0 18px rgba(16, 185, 255, .22);
+}
+
+.hero p {
+  position: relative;
+  z-index: 1;
+
+  max-width: 650px;
+
+  color: #c0d3ea;
+  font-size: 16px;
+  line-height: 1.55;
+}
+
+.hero-orb {
+  width: 225px;
+  height: 225px;
+  margin-right: 8px;
+
+  border-radius: 28px;
+
+  background:
+    radial-gradient(
+      circle,
+      rgba(0, 157, 255, .26),
+      transparent 62%
+    );
+}
+
+.hero-orb div {
+  width: 175px;
+  height: 175px;
+
+  border-radius: 30px;
+  border: 2px solid var(--ou-yellow);
+
+  display: grid;
+  place-items: center;
+
+  font-size: 50px;
+  color: #fff;
+
+  background:
+    radial-gradient(
+      circle at 38% 35%,
+      #fff 0 11%,
+      #dbe4ef 12% 20%,
+      transparent 21%
+    ),
+    linear-gradient(145deg, #171d25, #05070a);
+
+  box-shadow:
+    0 0 38px rgba(0, 147, 255, .30);
+}
+
+/* =========================================
+   FEATURE CARDS
+   ========================================= */
+
+.dashboard-grid {
+  display: grid;
+
+  grid-template-columns:
+    repeat(2, minmax(0, 1fr));
+
+  gap: 14px;
+
+  margin-top: 18px;
+}
+
+.feature-card {
+  position: relative;
+  overflow: hidden;
+
+  min-height: 158px;
+  padding: 21px;
+
+  border-radius: 16px;
+  border: 1px solid rgba(32, 143, 255, .45);
+
+  background:
+    linear-gradient(
+      145deg,
+      rgba(7, 30, 55, .98),
+      rgba(5, 18, 35, .98)
+    );
+
+  box-shadow:
+    0 10px 25px rgba(0,0,0,.18);
+
+  transition:
+    transform .18s ease,
+    border-color .18s ease,
+    box-shadow .18s ease;
+}
+
+.feature-card::after {
+  content: "";
+
+  position: absolute;
+
+  right: -20%;
+  bottom: -70%;
+
+  width: 100%;
+  height: 110px;
+
+  background:
+    radial-gradient(
+      circle,
+      rgba(0, 156, 255, .14),
+      transparent 68%
+    );
+
+  pointer-events: none;
+}
+
+.feature-card:hover {
+  transform: translateY(-2px);
+
+  border-color:
+    rgba(70, 184, 255, .72);
+
+  box-shadow:
+    0 14px 30px rgba(0, 94, 190, .16);
+}
+
+.feature-icon {
+  width: 50px;
+  height: 50px;
+
+  display: grid;
+  place-items: center;
+
+  border-radius: 13px;
+
+  background:
+    linear-gradient(
+      145deg,
+      #087cf1,
+      #10b7ff
+    );
+
+  color: #fff;
+  font-size: 24px;
+
+  box-shadow:
+    0 8px 20px rgba(0, 123, 255, .22);
+}
+
+.feature-card h3 {
+  font-size: 17px;
+}
+
+.feature-card p {
+  color: #a7bdd8;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.feature-arrow {
+  color: #54baff;
+  font-size: 20px;
+}
+
+/* =========================================
+   PANELS / CARDS
+   ========================================= */
+
+.panel,
+.project-card,
+.setting-item {
+  border: 1px solid rgba(31, 133, 231, .32);
+
+  background:
+    linear-gradient(
+      145deg,
+      rgba(5, 24, 45, .96),
+      rgba(3, 16, 31, .96)
+    );
+
+  box-shadow:
+    0 8px 24px rgba(0,0,0,.16);
+}
+
+.panel-header h2 {
+  font-size: 15px;
+  color: #f3f7ff;
+}
+
+.panel-header span,
+.project-card p,
+.setting-item p,
+.workspace-stat span {
+  color: #8fa8c5;
+}
+
+/* =========================================
+   BUTTONS
+   ========================================= */
+
+.quick-chat button,
+.quick-actions button,
+.chat-suggestions button {
+  color: #c0d5ec;
+
+  border-color:
+    rgba(39, 139, 229, .30);
+
+  background:
+    rgba(8, 45, 77, .55);
+
+  transition:
+    background .18s
