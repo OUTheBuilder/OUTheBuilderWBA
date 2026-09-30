@@ -1154,7 +1154,7 @@ function HomePage({
           />
 
           <div className="workspace-stat">
-            <strong>{getCurrentProjectFiles().length}</strong>
+            <strong>{Files.length}</strong>
             <span>Current project files</span>
           </div>
 
