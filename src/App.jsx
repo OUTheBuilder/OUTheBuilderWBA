@@ -765,26 +765,32 @@ function App() {
         '→ Requesting secure build upload slot'
       ])
 
+      const uploadPayload = {
+        projectName: currentProject,
+        fileName: `${currentProject.replace(/[^a-z0-9-_]+/gi, '_')}-source.zip`,
+        contentType: 'application/zip',
+        sizeBytes: lastProjectZip.current.size
+      }
       const uploadResponse = await fetch(`${BUILD_BRIDGE_API}/_api/build-source-upload`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          projectName: currentProject,
-          fileName: `${currentProject.replace(/[^a-z0-9-_]+/gi, '_')}-source.zip`,
-          contentType: 'application/zip',
-          sizeBytes: lastProjectZip.current.size
-        })
+        headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+        body: JSON.stringify({ json: uploadPayload })
       })
 
       const uploadText = await uploadResponse.text()
       let uploadData
       try {
-        uploadData = JSON.parse(uploadText)
+        const parsed = JSON.parse(uploadText)
+        uploadData = parsed?.json ?? parsed
       } catch {
         uploadData = null
       }
       if (!uploadResponse.ok || !uploadData?.presignedUrl) {
-        throw new Error(uploadData?.error || `Build upload preparation failed (${uploadResponse.status})`)
+        let uploadError = uploadData?.error
+        if (!uploadError) {
+          try { uploadError = JSON.parse(uploadText)?.error } catch {}
+        }
+        throw new Error(uploadError || `Build upload preparation failed (${uploadResponse.status})`)
       }
 
       setBuildLog(previous => [...previous, '→ Uploading source ZIP securely'])
@@ -798,26 +804,32 @@ function App() {
       }
 
       setBuildLog(previous => [...previous, '→ Triggering GitHub Actions remote build'])
+      const buildPayload = {
+        projectName: currentProject,
+        storageKey: uploadData.storageKey,
+        buildType: buildType.toLowerCase(),
+        gradleTask: ''
+      }
       const buildResponse = await fetch(`${BUILD_BRIDGE_API}/_api/trigger-android-build`, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
-        body: JSON.stringify({
-          projectName: currentProject,
-          storageKey: uploadData.storageKey,
-          buildType: buildType.toLowerCase(),
-          gradleTask: ''
-        })
+        body: JSON.stringify({ json: buildPayload })
       })
 
       const buildText = await buildResponse.text()
       let buildData
       try {
-        buildData = JSON.parse(buildText)
+        const parsed = JSON.parse(buildText)
+        buildData = parsed?.json ?? parsed
       } catch {
         buildData = null
       }
       if (!buildResponse.ok || !buildData?.accepted) {
-        throw new Error(buildData?.error || `GitHub build trigger failed (${buildResponse.status})`)
+        let buildError = buildData?.error
+        if (!buildError) {
+          try { buildError = JSON.parse(buildText)?.error } catch {}
+        }
+        throw new Error(buildError || `GitHub build trigger failed (${buildResponse.status})`)
       }
 
       const completedAt = new Date().toISOString()
