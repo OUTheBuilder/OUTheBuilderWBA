@@ -345,6 +345,8 @@ function App() {
   const googleAccessToken = useRef(null)
   const googleTokenClient = useRef(null)
   const lastProjectZip = useRef(null)
+  const buildPollTimer = useRef(null)
+  const [latestBuildRunId, setLatestBuildRunId] = useState(null)
 
   const [buildLog, setBuildLog] = useState([
     'BUILD CONSOLE',
@@ -394,6 +396,12 @@ function App() {
   useEffect(() => {
     localStorage.setItem('ou_builder_build_config', JSON.stringify({ target: buildTarget, type: buildType }))
   }, [buildTarget, buildType])
+
+  useEffect(() => {
+    return () => {
+      if (buildPollTimer.current) clearTimeout(buildPollTimer.current)
+    }
+  }, [])
 
   const activeLabel = useMemo(() => {
     return NAV_ITEMS.find(item => item.id === activePage)?.label ||
@@ -729,6 +737,95 @@ function App() {
     window.location.reload()
   }
 
+  async function pollAndroidBuildStatus(requestedAt, historyId) {
+    try {
+      const response = await fetch(`${BUILD_BRIDGE_API}/_api/android-build-status`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+        body: JSON.stringify({ json: { requestedAt } })
+      })
+      const text = await response.text()
+      let data = null
+      try {
+        const parsed = JSON.parse(text)
+        data = parsed?.json ?? parsed
+      } catch {}
+      if (!response.ok) throw new Error(data?.error || `Build status lookup failed (${response.status})`)
+      if (!data?.found) {
+        setBuildLog(previous => {
+          const next = previous.filter(line => !line.startsWith('→ GitHub runner status:'))
+          return [...next, '→ GitHub runner status: waiting for runner']
+        })
+      } else {
+        setLatestBuildRunId(data.runId)
+        setBuildLog(previous => {
+          const next = previous.filter(line => !line.startsWith('→ GitHub runner status:'))
+          return [...next, `→ GitHub runner status: ${data.status}`]
+        })
+        setBuildHistory(previous => previous.map(item => item.id === historyId
+          ? {
+              ...item,
+              status: data.conclusion
+                ? (data.conclusion === 'success' ? 'Successful' : 'Failed')
+                : (data.status === 'completed' ? 'Completed' : 'Running'),
+              runId: data.runId,
+              runUrl: data.htmlUrl,
+              conclusion: data.conclusion || null
+            }
+          : item
+        ))
+        if (data.status === 'completed') {
+          const successful = data.conclusion === 'success'
+          setBuildLog(previous => [
+            ...previous,
+            successful ? 'APK BUILD SUCCESSFUL' : `APK BUILD FAILED: ${data.conclusion || 'unknown'}`,
+            data.htmlUrl ? `GitHub Actions run: ${data.htmlUrl}` : ''
+          ].filter(Boolean))
+          setBuildStatus(successful ? 'Successful' : 'Ready')
+          setProjects(previous => previous.map(project =>
+            project.name === currentProject
+              ? { ...project, status: successful ? 'Build Successful' : 'Build Failed', updated: new Date().toISOString() }
+              : project
+          ))
+          return
+        }
+      }
+      buildPollTimer.current = setTimeout(() => pollAndroidBuildStatus(requestedAt, historyId), 5000)
+    } catch (error) {
+      setBuildLog(previous => [...previous, `→ Build status check delayed: ${error.message}`])
+      buildPollTimer.current = setTimeout(() => pollAndroidBuildStatus(requestedAt, historyId), 10000)
+    }
+  }
+
+  async function downloadBuildArtifact() {
+    if (!latestBuildRunId) return
+    try {
+      setBuildLog(previous => [...previous, '→ Downloading completed APK artifact'])
+      const response = await fetch(`${BUILD_BRIDGE_API}/_api/android-build-artifact`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+        body: JSON.stringify({ json: { runId: latestBuildRunId } })
+      })
+      if (!response.ok) {
+        const text = await response.text()
+        let message = 'APK artifact is not available yet.'
+        try { message = JSON.parse(text)?.error || message } catch {}
+        throw new Error(message)
+      }
+      const blob = await response.blob()
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `ou-the-builder-apk-artifact-${latestBuildRunId}.zip`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(url)
+      setBuildLog(previous => [...previous, 'APK artifact download started.'])
+    } catch (error) {
+      setBuildLog(previous => [...previous, `APK artifact download failed: ${error.message}`])
+    }
+  }
   async function startBuild() {
     if (buildStatus === 'Building...') return
 
@@ -757,6 +854,8 @@ function App() {
     }
 
     try {
+      const requestedAt = new Date().toISOString()
+      setLatestBuildRunId(null)
       setBuildLog(previous => [...previous, '→ Packaging project source'])
       lastProjectZip.current = await createProjectZip(projectFiles)
       setBuildLog(previous => [
@@ -839,8 +938,9 @@ function App() {
         '→ Remote runner will inspect, compile, and verify the project',
         'BUILD REQUEST SENT'
       ])
+      const historyId = `build-${Date.now()}`
       setBuildHistory(previous => [{
-        id: `build-${Date.now()}`,
+        id: historyId,
         project: currentProject,
         target: buildTarget,
         type: buildType,
@@ -848,10 +948,12 @@ function App() {
         completedAt,
         fileCount: projectFiles.length,
         zipSize: lastProjectZip.current.size,
-        eventId: buildData.eventId
+        eventId: buildData.eventId,
+        requestedAt
       }, ...previous].slice(0, 20))
       setProjects(previous => previous.map(project => project.name === currentProject ? { ...project, status: 'Build Queued', updated: completedAt } : project))
       setBuildStatus('Queued')
+      pollAndroidBuildStatus(requestedAt, historyId)
     } catch (error) {
       setBuildLog(previous => [...previous, 'BUILD STOPPED', `Remote build handoff failed: ${error.message}`])
       setBuildStatus('Ready')
@@ -1833,6 +1935,8 @@ function BuildPage({
   downloadBuildSourceZip,
   downloadBuildLog,
   downloadBuildManifest,
+  downloadBuildArtifact,
+  latestBuildRunId,
   buildHistory
 }) {
   return (
@@ -1914,6 +2018,15 @@ function BuildPage({
             >
               ↓ Export Build Manifest
             </button>
+
+            {latestBuildRunId && (
+              <button
+                className="secondary-button"
+                onClick={downloadBuildArtifact}
+              >
+                ↓ Download APK Artifact
+              </button>
+            )}
           </div>
 
         </section>
