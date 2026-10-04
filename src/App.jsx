@@ -26,6 +26,8 @@ const WORKSPACE_DB_NAME = 'ou-the-builder-workspace'
 const WORKSPACE_DB_VERSION = 1
 const WORKSPACE_STORE = 'fileBlobs'
 
+const BUILD_BRIDGE_API = 'https://thebuilder.floot.app'
+
 function openWorkspaceDB() {
   return new Promise((resolve, reject) => {
     if (!window.indexedDB) {
@@ -656,31 +658,98 @@ function App() {
       return
     }
 
+    if (buildTarget !== 'Android APK') {
+      setBuildLog(previous => [...previous, 'BUILD STOPPED', `Remote compilation is currently wired for Android APK. Target: ${buildTarget}`])
+      setBuildStatus('Ready')
+      return
+    }
+
     try {
       setBuildLog(previous => [...previous, '→ Packaging project source'])
       lastProjectZip.current = await createProjectZip(projectFiles)
       setBuildLog(previous => [
         ...previous,
         `Project source packaged: ${formatBytes(lastProjectZip.current.size)} ZIP`,
-        'Build environment prepared',
-        '→ Remote build handoff is the next integration step'
+        '→ Requesting secure build upload slot'
       ])
 
+      const uploadResponse = await fetch(`${BUILD_BRIDGE_API}/_api/build-source-upload`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          projectName: currentProject,
+          fileName: `${currentProject.replace(/[^a-z0-9-_]+/gi, '_')}-source.zip`,
+          contentType: 'application/zip',
+          sizeBytes: lastProjectZip.current.size
+        })
+      })
+
+      const uploadText = await uploadResponse.text()
+      let uploadData
+      try {
+        uploadData = JSON.parse(uploadText)
+      } catch {
+        uploadData = null
+      }
+      if (!uploadResponse.ok || !uploadData?.presignedUrl) {
+        throw new Error(uploadData?.error || `Build upload preparation failed (${uploadResponse.status})`)
+      }
+
+      setBuildLog(previous => [...previous, '→ Uploading source ZIP securely'])
+      const putResponse = await fetch(uploadData.presignedUrl, {
+        method: 'PUT',
+        headers: uploadData.uploadHeaders || {},
+        body: lastProjectZip.current
+      })
+      if (!putResponse.ok) {
+        throw new Error(`Source ZIP upload failed (${putResponse.status})`)
+      }
+
+      setBuildLog(previous => [...previous, '→ Triggering GitHub Actions remote build'])
+      const buildResponse = await fetch(`${BUILD_BRIDGE_API}/_api/trigger-android-build`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          projectName: currentProject,
+          storageKey: uploadData.storageKey,
+          buildType: buildType.toLowerCase(),
+          gradleTask: ''
+        })
+      })
+
+      const buildText = await buildResponse.text()
+      let buildData
+      try {
+        buildData = JSON.parse(buildText)
+      } catch {
+        buildData = null
+      }
+      if (!buildResponse.ok || !buildData?.accepted) {
+        throw new Error(buildData?.error || `GitHub build trigger failed (${buildResponse.status})`)
+      }
+
       const completedAt = new Date().toISOString()
+      setBuildLog(previous => [
+        ...previous,
+        `GitHub Actions build accepted: ${buildData.eventId}`,
+        '→ Remote runner will inspect, compile, and verify the project',
+        'BUILD REQUEST SENT'
+      ])
       setBuildHistory(previous => [{
         id: `build-${Date.now()}`,
         project: currentProject,
         target: buildTarget,
         type: buildType,
-        status: 'Packaged',
+        status: 'Queued',
         completedAt,
         fileCount: projectFiles.length,
-        zipSize: lastProjectZip.current.size
+        zipSize: lastProjectZip.current.size,
+        eventId: buildData.eventId
       }, ...previous].slice(0, 20))
-      setProjects(previous => previous.map(project => project.name === currentProject ? { ...project, status: 'Source Packaged', updated: completedAt } : project))
-      setBuildStatus('Ready')
+      setProjects(previous => previous.map(project => project.name === currentProject ? { ...project, status: 'Build Queued', updated: completedAt } : project))
+      setBuildStatus('Queued')
     } catch (error) {
-      setBuildLog(previous => [...previous, 'BUILD STOPPED', `Source packaging failed: ${error.message}`])
+      setBuildLog(previous => [...previous, 'BUILD STOPPED', `Remote build handoff failed: ${error.message}`])
       setBuildStatus('Ready')
     }
   }
