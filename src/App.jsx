@@ -141,6 +141,50 @@ function concatUint8Arrays(parts) {
   return output
 }
 
+async function createZipFromEntries(entries) {
+  const encoder = new TextEncoder()
+  const localParts = []
+  const centralParts = []
+  let offset = 0
+
+  for (const entry of entries) {
+    const data = entry.data instanceof Uint8Array ? entry.data : new Uint8Array(await entry.data.arrayBuffer())
+    const name = encoder.encode(entry.name.replace(/^[/\\]+/, ''))
+    const crc = crc32(data)
+
+    const localHeader = concatUint8Arrays([
+      new Uint8Array([0x50, 0x4b, 0x03, 0x04]),
+      writeUint16(20), writeUint16(0x0800), writeUint16(0),
+      writeUint16(0), writeUint16(0), writeUint32(crc),
+      writeUint32(data.length), writeUint32(data.length),
+      writeUint16(name.length), writeUint16(0), name
+    ])
+    localParts.push(localHeader, data)
+
+    const centralHeader = concatUint8Arrays([
+      new Uint8Array([0x50, 0x4b, 0x01, 0x02]),
+      writeUint16(20), writeUint16(20), writeUint16(0x0800),
+      writeUint16(0), writeUint16(0), writeUint16(0), writeUint32(crc),
+      writeUint32(data.length), writeUint32(data.length),
+      writeUint16(name.length), writeUint16(0), writeUint16(0),
+      writeUint16(0), writeUint16(0), writeUint32(0), writeUint32(offset), name
+    ])
+    centralParts.push(centralHeader)
+    offset += localHeader.length + data.length
+  }
+
+  const centralDirectory = concatUint8Arrays(centralParts)
+  const localDirectory = concatUint8Arrays(localParts)
+  const endOfCentralDirectory = concatUint8Arrays([
+    new Uint8Array([0x50, 0x4b, 0x05, 0x06]),
+    writeUint16(0), writeUint16(0), writeUint16(entries.length),
+    writeUint16(entries.length), writeUint32(centralDirectory.length),
+    writeUint32(localDirectory.length), writeUint16(0)
+  ])
+
+  return new Blob([localDirectory, centralDirectory, endOfCentralDirectory], { type: 'application/zip' })
+}
+
 async function createProjectZip(projectFiles) {
   const encoder = new TextEncoder()
   const localParts = []
@@ -407,23 +451,50 @@ function App() {
     setCurrentProject(copy.name)
   }
 
-  function exportWorkspace() {
-    const payload = {
-      format: 'OU The Builder Workspace',
-      version: '0.1.0',
-      exportedAt: new Date().toISOString(),
-      currentProject,
-      projects,
-      files,
-      buildHistory,
-      storage: { provider: storageProvider, mobiDriveLink, googleDriveFolderLink }
+  async function exportWorkspace() {
+    try {
+      const entries = []
+      const manifest = {
+        format: 'OU The Builder Workspace Backup',
+        version: '0.1.0',
+        exportedAt: new Date().toISOString(),
+        currentProject,
+        projects,
+        files,
+        buildHistory,
+        storage: { provider: storageProvider, mobiDriveLink, googleDriveFolderLink }
+      }
+
+      entries.push({
+        name: 'workspace.json',
+        data: new TextEncoder().encode(JSON.stringify(manifest, null, 2))
+      })
+
+      for (const file of files) {
+        const blob = await getWorkspaceFile(file.id)
+        if (!blob) continue
+        const data = new Uint8Array(await blob.arrayBuffer())
+        const safeProject = (file.project || currentProject).replace(/[^a-z0-9._-]+/gi, '_')
+        const safePath = (file.path || file.name).replace(/^[/\\]+/, '').split('/').map(part => part.replace(/[^a-z0-9._-]+/gi, '_')).join('/')
+        entries.push({
+          name: `files/${safeProject}/${safePath}`,
+          data
+        })
+      }
+
+      const blob = await createZipFromEntries(entries)
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = 'ou-the-builder-workspace-backup.zip'
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(url)
+      setStorageNotice(`Workspace backup exported with ${files.length} project file(s).`)
+    } catch (error) {
+      setStorageNotice(`Workspace backup failed: ${error.message}`)
     }
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = 'ou-the-builder-workspace.json'
-    document.body.appendChild(link); link.click(); link.remove(); URL.revokeObjectURL(url)
   }
 
   function removeProject(id) {
