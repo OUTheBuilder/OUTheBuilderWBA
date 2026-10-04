@@ -21,6 +21,201 @@ const INITIAL_PROJECTS = [
   }
 ]
 
+
+const WORKSPACE_DB_NAME = 'ou-the-builder-workspace'
+const WORKSPACE_DB_VERSION = 1
+const WORKSPACE_STORE = 'fileBlobs'
+
+function openWorkspaceDB() {
+  return new Promise((resolve, reject) => {
+    if (!window.indexedDB) {
+      reject(new Error('IndexedDB is not available in this browser.'))
+      return
+    }
+
+    const request = window.indexedDB.open(WORKSPACE_DB_NAME, WORKSPACE_DB_VERSION)
+
+    request.onupgradeneeded = () => {
+      const db = request.result
+      if (!db.objectStoreNames.contains(WORKSPACE_STORE)) {
+        db.createObjectStore(WORKSPACE_STORE, { keyPath: 'id' })
+      }
+    }
+
+    request.onsuccess = () => resolve(request.result)
+    request.onerror = () => reject(request.error || new Error('Could not open workspace storage.'))
+  })
+}
+
+async function putWorkspaceFile(id, blob) {
+  const db = await openWorkspaceDB()
+  await new Promise((resolve, reject) => {
+    const transaction = db.transaction(WORKSPACE_STORE, 'readwrite')
+    transaction.objectStore(WORKSPACE_STORE).put({ id, blob })
+    transaction.oncomplete = resolve
+    transaction.onerror = () => reject(transaction.error || new Error('Could not save project file.'))
+  })
+  db.close()
+}
+
+async function getWorkspaceFile(id) {
+  const db = await openWorkspaceDB()
+  const record = await new Promise((resolve, reject) => {
+    const transaction = db.transaction(WORKSPACE_STORE, 'readonly')
+    const request = transaction.objectStore(WORKSPACE_STORE).get(id)
+    request.onsuccess = () => resolve(request.result || null)
+    request.onerror = () => reject(request.error || new Error('Could not read project file.'))
+  })
+  db.close()
+  return record?.blob || null
+}
+
+async function deleteWorkspaceFile(id) {
+  try {
+    const db = await openWorkspaceDB()
+    await new Promise((resolve, reject) => {
+      const transaction = db.transaction(WORKSPACE_STORE, 'readwrite')
+      transaction.objectStore(WORKSPACE_STORE).delete(id)
+      transaction.oncomplete = resolve
+      transaction.onerror = () => reject(transaction.error || new Error('Could not delete project file.'))
+    })
+    db.close()
+  } catch {}
+}
+
+async function clearWorkspaceFiles() {
+  try {
+    const db = await openWorkspaceDB()
+    await new Promise((resolve, reject) => {
+      const transaction = db.transaction(WORKSPACE_STORE, 'readwrite')
+      transaction.objectStore(WORKSPACE_STORE).clear()
+      transaction.oncomplete = resolve
+      transaction.onerror = () => reject(transaction.error || new Error('Could not clear project files.'))
+    })
+    db.close()
+  } catch {}
+}
+
+function crc32(bytes) {
+  let crc = 0xffffffff
+
+  for (let i = 0; i < bytes.length; i += 1) {
+    crc ^= bytes[i]
+
+    for (let bit = 0; bit < 8; bit += 1) {
+      crc = (crc >>> 1) ^ (crc & 1 ? 0xedb88320 : 0)
+    }
+  }
+
+  return (crc ^ 0xffffffff) >>> 0
+}
+
+function writeUint16(value) {
+  return new Uint8Array([
+    value & 0xff,
+    (value >>> 8) & 0xff
+  ])
+}
+
+function writeUint32(value) {
+  return new Uint8Array([
+    value & 0xff,
+    (value >>> 8) & 0xff,
+    (value >>> 16) & 0xff,
+    (value >>> 24) & 0xff
+  ])
+}
+
+function concatUint8Arrays(parts) {
+  const total = parts.reduce((sum, part) => sum + part.length, 0)
+  const output = new Uint8Array(total)
+  let offset = 0
+
+  parts.forEach(part => {
+    output.set(part, offset)
+    offset += part.length
+  })
+
+  return output
+}
+
+async function createProjectZip(projectFiles) {
+  const encoder = new TextEncoder()
+  const localParts = []
+  const centralParts = []
+  let offset = 0
+
+  for (const file of projectFiles) {
+    const blob = await getWorkspaceFile(file.id)
+
+    if (!blob) {
+      throw new Error(`Missing stored content for: ${file.path || file.name}`)
+    }
+
+    const data = new Uint8Array(await blob.arrayBuffer())
+    const name = encoder.encode((file.path || file.name).replace(/^\\/+/, ''))
+    const crc = crc32(data)
+
+    const localHeader = concatUint8Arrays([
+      new Uint8Array([0x50, 0x4b, 0x03, 0x04]),
+      writeUint16(20),
+      writeUint16(0x0800),
+      writeUint16(0),
+      writeUint16(0),
+      writeUint16(0),
+      writeUint32(crc),
+      writeUint32(data.length),
+      writeUint32(data.length),
+      writeUint16(name.length),
+      writeUint16(0),
+      name
+    ])
+
+    localParts.push(localHeader, data)
+
+    const centralHeader = concatUint8Arrays([
+      new Uint8Array([0x50, 0x4b, 0x01, 0x02]),
+      writeUint16(20),
+      writeUint16(20),
+      writeUint16(0x0800),
+      writeUint16(0),
+      writeUint16(0),
+      writeUint16(0),
+      writeUint32(crc),
+      writeUint32(data.length),
+      writeUint32(data.length),
+      writeUint16(name.length),
+      writeUint16(0),
+      writeUint16(0),
+      writeUint16(0),
+      writeUint16(0),
+      writeUint32(0),
+      writeUint32(offset),
+      name
+    ])
+
+    centralParts.push(centralHeader)
+    offset += localHeader.length + data.length
+  }
+
+  const centralDirectory = concatUint8Arrays(centralParts)
+  const localDirectory = concatUint8Arrays(localParts)
+  const endOfCentralDirectory = concatUint8Arrays([
+    new Uint8Array([0x50, 0x4b, 0x05, 0x06]),
+    writeUint16(0),
+    writeUint16(0),
+    writeUint16(projectFiles.length),
+    writeUint16(projectFiles.length),
+    writeUint32(centralDirectory.length),
+    writeUint32(localDirectory.length),
+    writeUint16(0)
+  ])
+
+  return new Blob([localDirectory, centralDirectory, endOfCentralDirectory], {
+    type: 'application/zip'
+  })
+}
+
 const GOOGLE_DRIVE_SCOPES = [
   'https://www.googleapis.com/auth/drive.file',
   'https://www.googleapis.com/auth/drive.appdata',
@@ -88,6 +283,7 @@ function App() {
   })
   const googleAccessToken = useRef(null)
   const googleTokenClient = useRef(null)
+  const lastProjectZip = useRef(null)
 
   const [buildLog, setBuildLog] = useState([
     'BUILD CONSOLE',
@@ -239,7 +435,7 @@ function App() {
     folderInput.current?.click()
   }
 
-  function addFilesToWorkspace(selected, source = 'file') {
+  async function addFilesToWorkspace(selected, source = 'file') {
     const now = Date.now()
     const prepared = selected.map((file, index) => ({
       id: `${file.webkitRelativePath || file.name}-${file.size}-${file.lastModified || 0}-${now}-${index}`,
@@ -252,6 +448,10 @@ function App() {
       lastModified: file.lastModified || 0
     }))
 
+    for (let index = 0; index < selected.length; index += 1) {
+      await putWorkspaceFile(prepared[index].id, selected[index])
+    }
+
     setFiles(previous => {
       const existing = new Set(previous.map(file => `${file.path}|${file.size}|${file.lastModified || 0}`))
       const additions = prepared.filter(file => !existing.has(`${file.path}|${file.size}|${file.lastModified || 0}`))
@@ -261,24 +461,30 @@ function App() {
     return prepared
   }
 
-  function handleFiles(event) {
+  async function handleFiles(event) {
     const selected = Array.from(event.target.files || [])
     if (!selected.length) return
 
-    const prepared = addFilesToWorkspace(selected, 'file')
-    setStorageNotice(`${prepared.length} file${prepared.length === 1 ? '' : 's'} added to the current workspace.`)
+    try {
+      const prepared = await addFilesToWorkspace(selected, 'file')
+      setStorageNotice(`${prepared.length} file${prepared.length === 1 ? '' : 's'} added to the current workspace.`)
+    } catch (error) {
+      setStorageNotice(`Could not store project files: ${error.message}`)
+    }
+
     event.target.value = ''
   }
 
-  function handleFolder(event) {
+  async function handleFolder(event) {
     const selected = Array.from(event.target.files || [])
     if (!selected.length) return
 
     const firstPath = selected[0].webkitRelativePath || selected[0].name
     const folderName = firstPath.split('/')[0] || 'Selected Folder'
+    const now = Date.now()
 
     const prepared = selected.map((file, index) => ({
-      id: `${file.webkitRelativePath || file.name}-${file.size}-${file.lastModified || 0}-${Date.now()}-${index}`,
+      id: `${file.webkitRelativePath || file.name}-${file.size}-${file.lastModified || 0}-${now}-${index}`,
       name: file.name,
       path: file.webkitRelativePath || file.name,
       size: file.size,
@@ -288,11 +494,20 @@ function App() {
       lastModified: file.lastModified || 0
     }))
 
-    setPendingFolder({
-      name: folderName,
-      files: prepared
-    })
-    setStorageNotice(`Folder "${folderName}" is selected. Press Use this Folder to import it.`)
+    try {
+      for (let index = 0; index < selected.length; index += 1) {
+        await putWorkspaceFile(prepared[index].id, selected[index])
+      }
+
+      setPendingFolder({
+        name: folderName,
+        files: prepared
+      })
+      setStorageNotice(`Folder "${folderName}" is selected. Press Use this Folder to import it.`)
+    } catch (error) {
+      setStorageNotice(`Could not store folder files: ${error.message}`)
+    }
+
     event.target.value = ''
   }
 
@@ -327,13 +542,15 @@ function App() {
     setActivePage('files')
   }
 
-  function removeFile(id) {
+  async function removeFile(id) {
+    await deleteWorkspaceFile(id)
     setFiles(previous => previous.filter(file => file.id !== id))
   }
 
-  function clearFiles() {
+  async function clearFiles() {
     if (!files.length) return
     if (!window.confirm('Remove all imported files from this browser workspace?')) return
+    await clearWorkspaceFiles()
     setFiles([])
     setStorageNotice('Workspace files cleared.')
   }
@@ -397,59 +614,58 @@ function App() {
     localStorage.removeItem('ou_builder_projects')
     localStorage.removeItem('ou_builder_current')
     localStorage.removeItem('ou_builder_files')
+    await clearWorkspaceFiles()
     window.location.reload()
   }
 
-  function startBuild() {
+  async function startBuild() {
     if (buildStatus === 'Building...') return
 
     setActivePage('build')
     setBuildStatus('Building...')
 
     const projectFiles = getCurrentProjectFiles()
-
-    const steps = [
+    setBuildLog([
       'BUILD CONSOLE',
       `Project detected: ${currentProject}`,
       `Target selected: ${buildTarget}`,
       `Build type: ${buildType}`,
-      projectFiles.length ? `Resources checked: ${projectFiles.length} project file(s)` : 'Resources checked: no project files',
-      'Build environment prepared',
-      '→ Running build process',
-      '→ Compiling project',
-      '→ Packaging application',
-      '→ Verifying output'
-    ]
+      projectFiles.length ? `Resources checked: ${projectFiles.length} project file(s)` : 'Resources checked: no project files'
+    ])
 
-    setBuildLog([])
+    if (!projectFiles.length) {
+      setBuildLog(previous => [...previous, 'BUILD STOPPED', 'No project source files are available.'])
+      setBuildStatus('Ready')
+      return
+    }
 
-    steps.forEach((step, index) => {
-      setTimeout(() => {
-        setBuildLog(previous => [...previous, step])
+    try {
+      setBuildLog(previous => [...previous, '→ Packaging project source'])
+      lastProjectZip.current = await createProjectZip(projectFiles)
+      setBuildLog(previous => [
+        ...previous,
+        `Project source packaged: ${formatBytes(lastProjectZip.current.size)} ZIP`,
+        'Build environment prepared',
+        '→ Remote build handoff is the next integration step'
+      ])
 
-        if (index === steps.length - 1) {
-          setTimeout(() => {
-            const completedAt = new Date().toISOString()
-            setBuildLog(previous => [
-              ...previous,
-              'BUILD FOUNDATION READY',
-              'This browser build is a preparation simulation. Remote APK compilation will use the project source in the next build-system stage.'
-            ])
-            setBuildHistory(previous => [{
-              id: `build-${Date.now()}`,
-              project: currentProject,
-              target: buildTarget,
-              type: buildType,
-              status: 'Prepared',
-              completedAt,
-              fileCount: projectFiles.length
-            }, ...previous].slice(0, 20))
-            setProjects(previous => previous.map(project => project.name === currentProject ? { ...project, status: 'Build Prepared', updated: completedAt } : project))
-            setBuildStatus('Ready')
-          }, 350)
-        }
-      }, index * 400)
-    })
+      const completedAt = new Date().toISOString()
+      setBuildHistory(previous => [{
+        id: `build-${Date.now()}`,
+        project: currentProject,
+        target: buildTarget,
+        type: buildType,
+        status: 'Packaged',
+        completedAt,
+        fileCount: projectFiles.length,
+        zipSize: lastProjectZip.current.size
+      }, ...previous].slice(0, 20))
+      setProjects(previous => previous.map(project => project.name === currentProject ? { ...project, status: 'Source Packaged', updated: completedAt } : project))
+      setBuildStatus('Ready')
+    } catch (error) {
+      setBuildLog(previous => [...previous, 'BUILD STOPPED', `Source packaging failed: ${error.message}`])
+      setBuildStatus('Ready')
+    }
   }
 
   function sendChat() {
