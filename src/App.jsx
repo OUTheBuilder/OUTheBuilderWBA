@@ -1229,6 +1229,8 @@ function App() {
             downloadBuildSourceZip={downloadBuildSourceZip}
             downloadBuildLog={downloadBuildLog}
             downloadBuildManifest={downloadBuildManifest}
+            downloadBuildArtifact={downloadBuildArtifact}
+            latestBuildRunId={latestBuildRunId}
             buildHistory={buildHistory}
           />
         )
