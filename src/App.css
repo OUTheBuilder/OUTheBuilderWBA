@@ -1472,11 +1472,6 @@ button {
     #0c1229;
 }
 
-.feature-card.green .feature-icon {
-  color: #68d99a;
-  background: rgba(71, 219, 143, 0.1);
-}
-
 .feature-card.cyan .feature-icon {
   color: #62d9cf;
   background: rgba(41, 208, 190, 0.1);
