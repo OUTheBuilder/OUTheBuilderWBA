@@ -155,7 +155,7 @@ async function createProjectZip(projectFiles) {
     }
 
     const data = new Uint8Array(await blob.arrayBuffer())
-    const name = encoder.encode((file.path || file.name).replace(/^\\/+/, ''))
+    const name = encoder.encode((file.path || file.name).replace(/^\/+/, ''))
     const crc = crc32(data)
 
     const localHeader = concatUint8Arrays([
