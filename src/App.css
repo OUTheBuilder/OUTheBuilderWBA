@@ -411,6 +411,18 @@ button {
     #0c1229;
 }
 
+/* Home Projects feature card — keep the card styling consistent with the other feature cards */
+.feature-card.green {
+  background:
+    radial-gradient(
+      circle at 100% 0,
+      rgba(71, 219, 143, 0.12),
+      transparent 50%
+    ),
+    #0c1229;
+}
+
+
 .feature-icon {
   width: 40px;
   height: 40px;
