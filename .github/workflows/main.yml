@@ -248,7 +248,7 @@ jobs:
             CANDIDATE_TASK="assembleDebug"
           fi
 
-          if grep -Eq "^[[:space:]]+$CANDIDATE_TASK([[:space:]]|$)" gradle-tasks.txt; then
+          if grep -Eq "(^|[[:space:]])$CANDIDATE_TASK([[:space:]-]|$)" gradle-tasks.txt; then
             echo "BUILD_TASK=$CANDIDATE_TASK" >> "$GITHUB_ENV"
             echo "Selected task: $CANDIDATE_TASK"
             exit 0
