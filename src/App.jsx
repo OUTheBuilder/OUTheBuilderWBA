@@ -597,6 +597,23 @@ function App() {
     setStorageNotice(`Build manifest exported with ${projectFiles.length} project file(s).`)
   }
 
+  function downloadBuildSourceZip() {
+    if (!lastProjectZip.current) {
+      setBuildLog(previous => [...previous, 'No packaged project ZIP is available. Run Build first.'])
+      return
+    }
+
+    const url = URL.createObjectURL(lastProjectZip.current)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `${currentProject.replace(/[^a-z0-9-_]+/gi, '_')}-source.zip`
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    URL.revokeObjectURL(url)
+    setBuildLog(previous => [...previous, `Project source ZIP exported: ${formatBytes(lastProjectZip.current.size)}`])
+  }
+
   function downloadBuildLog() {
     const blob = new Blob([buildLog.join('\n')], { type: 'text/plain;charset=utf-8' })
     const url = URL.createObjectURL(blob)
@@ -934,6 +951,7 @@ function App() {
             setTarget={setBuildTarget}
             buildType={buildType}
             setBuildType={setBuildType}
+            downloadBuildSourceZip={downloadBuildSourceZip}
             downloadBuildLog={downloadBuildLog}
             downloadBuildManifest={downloadBuildManifest}
             buildHistory={buildHistory}
@@ -1639,6 +1657,7 @@ function BuildPage({
   setTarget,
   buildType,
   setBuildType,
+  downloadBuildSourceZip,
   downloadBuildLog,
   downloadBuildManifest,
   buildHistory
@@ -1698,6 +1717,14 @@ function BuildPage({
               disabled={status === 'Building...'}
             >
               {status === 'Building...' ? '⏳ Building...' : '▶ Run Build'}
+            </button>
+
+            <button
+              className="secondary-button"
+              onClick={downloadBuildSourceZip}
+              disabled={status === 'Building...' }
+            >
+              ↓ Export Source ZIP
             </button>
 
             <button
