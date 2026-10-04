@@ -609,7 +609,7 @@ function App() {
     URL.revokeObjectURL(url)
   }
 
-  function resetWorkspace() {
+  async function resetWorkspace() {
     if (!window.confirm('Reset the local OU The Builder workspace? This removes projects and imported files stored in this browser.')) return
     localStorage.removeItem('ou_builder_projects')
     localStorage.removeItem('ou_builder_current')
