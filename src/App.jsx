@@ -675,7 +675,7 @@ function App() {
 
       const uploadResponse = await fetch(`${BUILD_BRIDGE_API}/_api/build-source-upload`, {
         method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           projectName: currentProject,
           fileName: `${currentProject.replace(/[^a-z0-9-_]+/gi, '_')}-source.zip`,
