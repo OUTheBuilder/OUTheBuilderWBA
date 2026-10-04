@@ -272,7 +272,14 @@ jobs:
           echo "=========================================="
           echo "Task: $BUILD_TASK"
 
-          ./gradlew "$BUILD_TASK" --no-daemon --stacktrace
+          set +e
+          ./gradlew "$BUILD_TASK" --no-daemon --stacktrace 2>&1 | tee "$GITHUB_WORKSPACE/android-build.log"
+          BUILD_EXIT=${PIPESTATUS[0]}
+          set -e
+          if [ "$BUILD_EXIT" -ne 0 ]; then
+            echo "::error::Gradle build failed with exit code $BUILD_EXIT"
+            exit "$BUILD_EXIT"
+          fi
 
       - name: Verify APK output
         shell: bash
@@ -307,5 +314,6 @@ jobs:
           name: ou-the-builder-android-log-${{ github.run_number }}
           path: |
             gradle-tasks.txt
+            android-build.log
           if-no-files-found: warn
           retention-days: 7
