@@ -228,6 +228,21 @@ const GOOGLE_DRIVE_SCOPES = [
 
 function App() {
   const [activePage, setActivePage] = useState('home')
+
+  useEffect(() => {
+    window.history.replaceState({ ouBuilderPage: 'home' }, '', window.location.href)
+
+    const handlePopState = (event) => {
+      const page = event.state?.ouBuilderPage
+      if (page && NAV_ITEMS.some(item => item.id === page)) {
+        setActivePage(page)
+        setMobileMenu(false)
+      }
+    }
+
+    window.addEventListener('popstate', handlePopState)
+    return () => window.removeEventListener('popstate', handlePopState)
+  }, [])
   const [mobileMenu, setMobileMenu] = useState(false)
 
   const [projects, setProjects] = useState(() => {
@@ -342,6 +357,12 @@ function App() {
   }, [activePage])
 
   function navigate(page) {
+    if (!NAV_ITEMS.some(item => item.id === page)) return
+    if (page === activePage) {
+      setMobileMenu(false)
+      return
+    }
+    window.history.pushState({ ouBuilderPage: page }, '', window.location.href)
     setActivePage(page)
     setMobileMenu(false)
   }
@@ -364,7 +385,7 @@ function App() {
 
     setProjects(previous => [...previous, project])
     setCurrentProject(project.name)
-    setActivePage('projects')
+    navigate('projects')
   }
 
   function renameProject(project) {
@@ -426,7 +447,7 @@ function App() {
 
   function chooseProject(project) {
     setCurrentProject(project.name)
-    setActivePage('files')
+    navigate('files')
   }
 
   function openFilePicker() {
@@ -640,7 +661,7 @@ function App() {
   async function startBuild() {
     if (buildStatus === 'Building...') return
 
-    setActivePage('build')
+    navigate('build')
     setBuildStatus('Building...')
 
     const projectFiles = getCurrentProjectFiles()
