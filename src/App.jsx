@@ -980,30 +980,39 @@ function App() {
     setChatInput('')
 
     setTimeout(() => {
-      let response =
-        'I received your request. The AI Builder connection will be integrated into this interface in the AI backend stage.'
-
       const lower = text.toLowerCase()
+      let response = 'I received your request. I can control the builder workspace, navigation, files, and build actions from this command box.'
 
-      if (
-        lower.includes('build') ||
-        lower.includes('compile')
-      ) {
-        response =
-          'Build request received. I am starting the current project build preparation now.'
+      const go = (page, message) => {
+        navigate(page)
+        response = message
+      }
+
+      if (lower.includes('build') || lower.includes('compile')) {
+        response = 'Build request received. I am starting the current project build preparation now.'
         setTimeout(() => startBuild(), 100)
-      } else if (
-        lower.includes('project') &&
-        lower.includes('create')
-      ) {
-        response =
-          'Use New Project from the Projects section to create a project in the current WBA foundation.'
-      } else if (
-        lower.includes('flow') ||
-        lower.includes('screen')
-      ) {
-        response =
-          'The Image Flow section is ready for the visual application-flow system.'
+      } else if ((lower.includes('create') || lower.includes('new')) && lower.includes('project')) {
+        response = 'Opening Projects so you can create the new project.'
+        setTimeout(() => createProject(), 100)
+      } else if (lower.includes('project')) {
+        go('projects', 'Opening Projects.')
+      } else if (lower.includes('file')) {
+        go('files', 'Opening Files for the current project.')
+      } else if (lower.includes('flow') || lower.includes('screen')) {
+        go('flow', 'Opening Image Flow.')
+      } else if (lower.includes('google') || lower.includes('drive')) {
+        go('drive', 'Opening Google Drive and storage controls.')
+      } else if (lower.includes('setting')) {
+        go('settings', 'Opening Settings.')
+      } else if (lower.includes('chat') || lower.includes('agent')) {
+        go('chat', 'You are already using the AI command center.')
+      } else if (lower.includes('home')) {
+        go('home', 'Opening Home.')
+      } else if (lower.includes('log') && (lower.includes('download') || lower.includes('save'))) {
+        downloadBuildLog()
+        response = 'The current Build Console log download has been started.'
+      } else if (lower.includes('log') || lower.includes('console')) {
+        go('build', 'Opening the Build Console.')
       }
 
       setChatMessages(previous => [
@@ -1013,7 +1022,7 @@ function App() {
           text: response
         }
       ])
-    }, 450)
+    }, 250)
   }
 
   function loadGoogleIdentityServices() {
