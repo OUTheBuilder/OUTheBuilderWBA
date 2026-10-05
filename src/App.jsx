@@ -505,7 +505,7 @@ function App() {
     }
   }
 
-  function removeProject(id) {
+  async function removeProject(id) {
     const project = projects.find(item => item.id === id)
 
     if (!project) return
@@ -514,6 +514,10 @@ function App() {
       return
     }
 
+    const projectFiles = files.filter(file => file.project === project.name)
+    await Promise.all(projectFiles.map(file => deleteWorkspaceFile(file.id)))
+
+    setFiles(previous => previous.filter(file => file.project !== project.name))
     const remaining = projects.filter(item => item.id !== id)
     const nextProjects = remaining.length ? remaining : INITIAL_PROJECTS
 
@@ -641,7 +645,7 @@ function App() {
 
     setStorageNotice(`Folder "${pendingFolder.name}" is now the current project source.`)
     setPendingFolder(null)
-    setActivePage('files')
+    navigate('files')
   }
 
   async function removeFile(id) {
